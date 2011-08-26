@@ -14,11 +14,13 @@ import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.client.HttpClient;
+import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 public class TestflightRecorder extends Recorder
 {
@@ -79,7 +81,39 @@ public class TestflightRecorder extends Recorder
 
             HttpResponse response = httpclient.execute(httpPost);
             HttpEntity resEntity = response.getEntity();
-            resEntity.writeTo(listener.getLogger());
+
+            InputStream is = resEntity.getContent();
+            JSONParser parser = new JSONParser();
+
+            final Map parsedMap = (Map)parser.parse(new BufferedReader(new InputStreamReader(is)));
+
+            build.addAction( new ProminentProjectAction() {
+                public String getIconFileName() {
+                    return "new-package.gif";
+                }
+
+                public String getDisplayName() {
+                    return "Testflight Install Link";
+                }
+
+                public String getUrlName() {
+                    return (String)parsedMap.get("install_url");
+                }
+            } );
+
+            build.addAction( new ProminentProjectAction() {
+                public String getIconFileName() {
+                    return "gear.gif";
+                }
+
+                public String getDisplayName() {
+                    return "Testflight Configuration Link";
+                }
+
+                public String getUrlName() {
+                    return (String)parsedMap.get("config_url");
+                }
+            } );
         }
         catch (Exception e)
         {
@@ -88,28 +122,6 @@ public class TestflightRecorder extends Recorder
         }
 
         return true;
-    }
-
-    @Override
-     public Collection<? extends Action> getProjectActions(AbstractProject<?, ?> project) {
-        {
-            Action action = new ProminentProjectAction() {
-                public String getIconFileName() {
-                    return "graph.gif";
-                }
-
-                public String getDisplayName() {
-                    return "Testflight Install Link";
-                }
-
-                public String getUrlName() {
-                    return "www.google.com";
-                }
-            };
-            ArrayList<Action> actions = new ArrayList<Action>();
-            actions.add(action);
-            return actions;
-        }
     }
 
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
