@@ -4,8 +4,10 @@ import hudson.EnvVars;
 import hudson.Extension;
 import hudson.Launcher;
 import hudson.model.*;
-import hudson.search.Search;
+import hudson.model.AbstractBuild;
 import hudson.tasks.*;
+import hudson.util.RunList;
+import org.apache.commons.collections.Predicate;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -17,29 +19,29 @@ import org.apache.http.client.HttpClient;
 import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
+
+import org.apache.commons.collections.CollectionUtils;
 
 public class TestflightRecorder extends Recorder
 {
     private String apiToken;
     private String teamToken;
     private Boolean notifyTeam;
-    private String file;
     private String buildNotes;
     private String filePath;
-
+    private String lists;
+    private Boolean replace;
     @DataBoundConstructor
-    public TestflightRecorder(String apiToken, String teamToken, Boolean notifyTeam, String file, String buildNotes, String filePath)
+    public TestflightRecorder(String apiToken, String teamToken, Boolean notifyTeam, String buildNotes, String filePath, String lists, Boolean replace)
     {
         this.teamToken = teamToken;
         this.apiToken = apiToken;
         this.notifyTeam = notifyTeam;
-        this.file = file;
         this.buildNotes = buildNotes;
         this.filePath = filePath;
+        this.replace = replace;
+        this.lists = lists;
     }
 
     @Override
@@ -76,7 +78,10 @@ public class TestflightRecorder extends Recorder
             entity.addPart("team_token", new StringBody(teamToken));
             entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
             entity.addPart("file", fileBody);
-
+            if (lists.length() > 0)
+                entity.addPart("distribution_lists", new StringBody(lists));
+            entity.addPart("notify", new StringBody(notifyTeam ? "True" : "False"));
+            entity.addPart("replace", new StringBody(replace ? "True" : "False"));
             httpPost.setEntity(entity);
 
             HttpResponse response = httpclient.execute(httpPost);
@@ -87,33 +92,17 @@ public class TestflightRecorder extends Recorder
 
             final Map parsedMap = (Map)parser.parse(new BufferedReader(new InputStreamReader(is)));
 
-            build.addAction( new ProminentProjectAction() {
-                public String getIconFileName() {
-                    return "new-package.gif";
-                }
+            TestflightBuildAction installAction = new TestflightBuildAction();
+            installAction.displayName = "Testflight Install Link";
+            installAction.iconFileName = "package.gif";
+            installAction.urlName = (String)parsedMap.get("install_url");
+            build.addAction(installAction);
 
-                public String getDisplayName() {
-                    return "Testflight Install Link";
-                }
-
-                public String getUrlName() {
-                    return (String)parsedMap.get("install_url");
-                }
-            } );
-
-            build.addAction( new ProminentProjectAction() {
-                public String getIconFileName() {
-                    return "gear.gif";
-                }
-
-                public String getDisplayName() {
-                    return "Testflight Configuration Link";
-                }
-
-                public String getUrlName() {
-                    return (String)parsedMap.get("config_url");
-                }
-            } );
+            TestflightBuildAction configureAction = new TestflightBuildAction();
+            configureAction.displayName = "Testflight Configuration Link";
+            configureAction.iconFileName = "gear2.gif";
+            configureAction.urlName = (String)parsedMap.get("config_url");
+            build.addAction(configureAction);
         }
         catch (Exception e)
         {
@@ -122,6 +111,38 @@ public class TestflightRecorder extends Recorder
         }
 
         return true;
+    }
+
+    @Override
+    public Collection<? extends Action> getProjectActions(AbstractProject<?, ?> project)
+    {
+        ArrayList<TestflightBuildAction> actions = new ArrayList<TestflightBuildAction>();
+        RunList<? extends AbstractBuild<?,?>> builds = project.getBuilds();
+
+        Collection predicated = CollectionUtils.select(builds, new Predicate() {
+            public boolean evaluate(Object o) {
+                return ((AbstractBuild<?,?>)o).getResult().isBetterOrEqualTo(Result.SUCCESS);
+            }
+        });
+
+        ArrayList<AbstractBuild<?,?>> filteredList = new ArrayList<AbstractBuild<?,?>>(predicated);
+
+
+        Collections.reverse(filteredList);
+        for (AbstractBuild<?,?> build : filteredList)
+        {
+           List<TestflightBuildAction> testflightActions = build.getActions(TestflightBuildAction.class);
+           if (testflightActions != null && testflightActions.size() > 0)
+           {
+               for (TestflightBuildAction action : testflightActions)
+               {
+                   actions.add(new TestflightBuildAction(action));
+               }
+               break;
+           }
+        }
+
+        return actions;
     }
 
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
