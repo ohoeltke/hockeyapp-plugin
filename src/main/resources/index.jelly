@@ -1,0 +1,6 @@
+<!--
+  This view is used to render the installed plugins page.
+-->
+<div>
+  This plugin will upload a .ipa file to testflightapp.com for distribution.
+</div>
