@@ -8,6 +8,8 @@
 
   <groupId>org.jenkins-ci.plugins</groupId>
   <artifactId>testflight</artifactId>
+  <name>Testflight Plugin</name>
+  <description>Uploads .ipa files to www.testflightapp.com</description>
   <version>1.2-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
@@ -25,7 +27,7 @@
     <url>https://github.com/jenkinsci/testflight-plugin</url>
   </scm>
 
-  <url>http://wiki.jenkins-ci.org/display/JENKINS/Testfligh</url>
+  <url>http://wiki.jenkins-ci.org/display/JENKINS/Testflight+Plugin</url>
 
 
   <developers>
