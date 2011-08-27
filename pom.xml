@@ -6,7 +6,7 @@
     <version>1.399</version><!-- which version of Jenkins is this plugin built against? -->
   </parent>
 
-  <groupId>testflight</groupId>
+  <groupId>org.jenkins-ci.plugins</groupId>
   <artifactId>testflight</artifactId>
   <version>1.1-SNAPSHOT</version>
   <packaging>hpi</packaging>
