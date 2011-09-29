@@ -21,17 +21,54 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import java.io.*;
 import java.util.*;
 
+import net.sf.json.JSONObject;
 import org.apache.commons.collections.CollectionUtils;
+import org.kohsuke.stapler.StaplerRequest;
 
 public class TestflightRecorder extends Recorder
 {
     private String apiToken;
+    public String getApiToken()
+    {
+        return this.apiToken;
+    }
+            
     private String teamToken;
+    public String getTeamToken()
+    {
+        return this.teamToken;
+    }
+    
     private Boolean notifyTeam;
+    public Boolean getNotifyTeam()
+    {
+        return this.notifyTeam;
+    }
+    
     private String buildNotes;
+    public String getBuildNotes()
+    {
+        return this.buildNotes;
+    }
+    
     private String filePath;
+    public String getFilePath()
+    {
+        return this.filePath;
+    }
+    
     private String lists;
+    public String getLists()
+    {
+        return this.lists;
+    }
+    
     private Boolean replace;
+    public Boolean getReplace()
+    {
+        return this.replace;
+    }
+    
     @DataBoundConstructor
     public TestflightRecorder(String apiToken, String teamToken, Boolean notifyTeam, String buildNotes, String filePath, String lists, Boolean replace)
     {
@@ -148,11 +185,24 @@ public class TestflightRecorder extends Recorder
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher>
     {
+        public DescriptorImpl() {
+            super(TestflightRecorder.class);
+            load();
+        }
+                
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types
             return true;
         }
 
+        @Override
+        public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
+            // XXX is this now the right style?
+            req.bindJSON(this,json);
+            save();
+            return true;
+        }
+                
         /**
          * This human readable name is used in the configuration screen.
          */
