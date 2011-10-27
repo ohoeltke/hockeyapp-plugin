@@ -18,6 +18,9 @@
   <f:entry title="IPA File" field="filePath">
     <f:textbox />
   </f:entry>
+  <f:entry title="dSYM File" field="dsymPath">
+    <f:textbox />
+  </f:entry>
   <f:entry title="Build Notes" field="buildNotes">
     <f:textarea />
   </f:entry>
