@@ -2,6 +2,7 @@ package testflight;
 
 import hudson.EnvVars;
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.Launcher;
 import hudson.model.*;
 import hudson.model.AbstractBuild;
@@ -107,12 +108,22 @@ public class TestflightRecorder extends Recorder
 
         listener.getLogger().println("Uploading to testflight");
 
+        File tempDir = null;
+        File file = null;
         try
         {
             EnvVars vars = build.getEnvironment(listener);
 
-            File file = new File(vars.expand(filePath));
-            listener.getLogger().println(file);
+            FilePath remoteFile = new FilePath(build.getWorkspace(), vars.expand(filePath));
+            listener.getLogger().println(remoteFile);
+
+            // Copy remote file to local file system.
+            tempDir = File.createTempFile("jtf", null);
+            tempDir.delete();
+            tempDir.mkdirs();
+            file = new File(tempDir, remoteFile.getName());
+            file.createNewFile();
+            remoteFile.copyTo(new FileOutputStream(file));
 
             HttpClient httpclient = new DefaultHttpClient();
             HttpPost httpPost = new HttpPost("http://testflightapp.com/api/builds.json");
@@ -141,6 +152,15 @@ public class TestflightRecorder extends Recorder
             HttpEntity resEntity = response.getEntity();
 
             InputStream is = resEntity.getContent();
+
+            // Improved error handling.
+            if (response.getStatusLine().getStatusCode() != 200) {
+                String responseBody = new Scanner(is).useDelimiter("\\A").next();
+                listener.getLogger().println("Incorrect response code: " + response.getStatusLine().getStatusCode());
+                listener.getLogger().println(responseBody);
+                return false;
+            }
+
             JSONParser parser = new JSONParser();
 
             final Map parsedMap = (Map)parser.parse(new BufferedReader(new InputStreamReader(is)));
@@ -161,6 +181,15 @@ public class TestflightRecorder extends Recorder
         {
             listener.getLogger().println(e);
             return false;
+        }
+        finally
+        {
+            if (file != null) {
+                file.delete();
+            }
+            if (tempDir != null) {
+                tempDir.delete();
+            }
         }
 
         return true;
