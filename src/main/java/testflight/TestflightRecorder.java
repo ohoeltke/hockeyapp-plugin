@@ -24,6 +24,7 @@ import java.util.*;
 
 import net.sf.json.JSONObject;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.StaplerRequest;
 
@@ -109,21 +110,17 @@ public class TestflightRecorder extends Recorder
         listener.getLogger().println("Uploading to testflight");
 
         File tempDir = null;
-        File file = null;
         try
         {
             EnvVars vars = build.getEnvironment(listener);
-
-            FilePath remoteFile = new FilePath(build.getWorkspace(), vars.expand(filePath));
-            listener.getLogger().println(remoteFile);
 
             // Copy remote file to local file system.
             tempDir = File.createTempFile("jtf", null);
             tempDir.delete();
             tempDir.mkdirs();
-            file = new File(tempDir, remoteFile.getName());
-            file.createNewFile();
-            remoteFile.copyTo(new FileOutputStream(file));
+            
+            File file = getFileLocally(build.getWorkspace(), vars.expand(filePath), tempDir);
+            listener.getLogger().println(file);
 
             HttpClient httpclient = new DefaultHttpClient();
             HttpPost httpPost = new HttpPost("http://testflightapp.com/api/builds.json");
@@ -136,7 +133,7 @@ public class TestflightRecorder extends Recorder
             entity.addPart("file", fileBody);
             
             if (!StringUtils.isEmpty(dsymPath)) {
-              File dsymFile = new File(vars.expand(dsymPath));
+              File dsymFile = getFileLocally(build.getWorkspace(), vars.expand(dsymPath), tempDir);
               listener.getLogger().println(dsymFile);
               FileBody dsymFileBody = new FileBody(dsymFile);
               entity.addPart("dsym", dsymFileBody);
@@ -184,15 +181,42 @@ public class TestflightRecorder extends Recorder
         }
         finally
         {
-            if (file != null) {
-                file.delete();
+            try
+            {
+                FileUtils.deleteDirectory(tempDir);
             }
-            if (tempDir != null) {
-                tempDir.delete();
+            catch (IOException e)
+            {
+                try
+                {
+                    FileUtils.forceDeleteOnExit(tempDir);
+                }
+                catch (IOException e1)
+                {
+                    listener.getLogger().println(e1);
+                }
             }
         }
 
         return true;
+    }
+    
+    private File getFileLocally(FilePath workingDir, String strFile, File tempDir) throws IOException, InterruptedException
+    {
+        if (workingDir.isRemote())
+        {
+            FilePath remoteFile = new FilePath(workingDir, strFile);
+            File file = new File(tempDir, remoteFile.getName());
+            file.createNewFile();
+            FileOutputStream fos = new FileOutputStream(file);
+            remoteFile.copyTo(fos);
+            fos.close();
+            return file;
+        }
+        else
+        {
+            return new File(strFile);
+        }
     }
 
     @Override
