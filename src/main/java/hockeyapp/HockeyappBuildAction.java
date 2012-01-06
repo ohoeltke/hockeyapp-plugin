@@ -1,4 +1,4 @@
-package testflight;
+package hockeyapp;
 
 import com.sun.org.apache.bcel.internal.generic.RET;
 import com.sun.org.apache.bcel.internal.generic.RETURN;
@@ -7,17 +7,17 @@ import hudson.model.ProminentProjectAction;
 
 import java.awt.*;
 
-public class TestflightBuildAction implements ProminentProjectAction
+public class HockeyappBuildAction implements ProminentProjectAction
 {
     public String iconFileName;
     public String displayName;
     public String urlName;
 
-    public TestflightBuildAction()
+    public HockeyappBuildAction()
     {
     }
 
-    public TestflightBuildAction(Action action)
+    public HockeyappBuildAction(Action action)
     {
         iconFileName = action.getIconFileName();
         displayName = action.getDisplayName();

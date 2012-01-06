@@ -7,10 +7,10 @@
   </parent>
 
   <groupId>org.jenkins-ci.plugins</groupId>
-  <artifactId>testflight</artifactId>
-  <name>Testflight Plugin</name>
-  <description>Uploads .ipa files to www.testflightapp.com</description>
-  <version>1.4.1-SNAPSHOT</version>
+  <artifactId>hockeyapp</artifactId>
+  <name>Hockeyapp Plugin</name>
+  <description>Uploads .ipa and .dsym files to www.hockeyapp.net</description>
+  <version>0.0.13-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <!-- get every artifact through maven.glassfish.org, which proxies all the artifacts that we need -->
@@ -22,19 +22,23 @@
   </repositories>
 
   <scm>
-    <connection>scm:git:ssh://github.com/jenkinsci/testflight-plugin.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/jenkinsci/testflight-plugin.git</developerConnection>
-    <url>https://github.com/jenkinsci/testflight-plugin</url>
+    <connection>scm:git:ssh://github.com/ohoeltke/hockeyapp-plugin.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/ohoeltke/hockeyapp-plugin.git</developerConnection>
+    <url>https://github.com/ohoeltke/hockeyapp-plugin</url>
   </scm>
 
-  <url>http://wiki.jenkins-ci.org/display/JENKINS/Testflight+Plugin</url>
+  <url>tbd</url>
 
 
+  <issueManagement>
+  	<system>github</system>
+  	<url>https://github.com/ohoeltke/hockeyapp-plugin/issues</url>
+  </issueManagement>
   <developers>
     <developer>
-      <id>jweinberg</id>
-      <name>Joshua Weinberg</name>
-      <email>joshuacweinberg@gmail.com</email>
+      <id>ohoeltke</id>
+      <name>Oliver Hoeltke</name>
+      <email>ohoeltke@gmail.com</email>
     </developer>
   </developers>
   <pluginRepositories>

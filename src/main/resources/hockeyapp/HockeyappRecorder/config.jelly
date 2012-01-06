@@ -9,12 +9,10 @@
     Creates a text field that shows the value of the "name" property.
     When submitted, it will be passed to the corresponding constructor parameter.
   -->
-  <f:entry title="API Token" field="apiToken">
+  <f:entry title="HockeyAppToken" field="apiToken">
     <f:textbox />
   </f:entry>
-  <f:entry title="Team Token" field="teamToken">
-    <f:textbox />
-  </f:entry>
+
   <f:entry title="IPA File" field="filePath">
     <f:textbox />
   </f:entry>
@@ -25,14 +23,17 @@
     <f:textarea />
   </f:entry>
   <f:advanced>
-    <f:entry title="Distribution Lists" field="lists">
+    <f:entry title="Restrict downloads to tags" field="tags">
         <f:textbox />
     </f:entry>
     <f:entry title="Notify Team" field="notifyTeam">
         <f:checkbox />
     </f:entry>
-    <f:entry title="Replace Build" field="replace">
+    <f:entry title="Download allowed" field="downloadAllowed">
         <f:checkbox />
+    </f:entry>
+    <f:entry title="Use changelog as build notes" field="useChangelog">
+    	<f:checkbox />
     </f:entry>
   </f:advanced>
 </j:jelly>

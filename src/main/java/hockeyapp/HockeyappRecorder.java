@@ -1,4 +1,4 @@
-package testflight;
+package hockeyapp;
 
 import hudson.EnvVars;
 import hudson.Extension;
@@ -28,18 +28,12 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.StaplerRequest;
 
-public class TestflightRecorder extends Recorder
+public class HockeyappRecorder extends Recorder
 {
     private String apiToken;
     public String getApiToken()
     {
         return this.apiToken;
-    }
-            
-    private String teamToken;
-    public String getTeamToken()
-    {
-        return this.teamToken;
     }
     
     private Boolean notifyTeam;
@@ -66,29 +60,34 @@ public class TestflightRecorder extends Recorder
         return this.dsymPath;
     }
     
-    private String lists;
-    public String getLists()
+    private String tags;
+    public String getTags()
     {
-        return this.lists;
+        return this.tags;
     }
     
-    private Boolean replace;
-    public Boolean getReplace()
+    private Boolean downloadAllowed;
+    public Boolean getDownloadAllowed()
     {
-        return this.replace;
+        return this.downloadAllowed;
+    }
+    
+    private Boolean useChangelog;
+    public Boolean getUseChangelog()
+    {
+        return this.useChangelog;
     }
     
     @DataBoundConstructor
-    public TestflightRecorder(String apiToken, String teamToken, Boolean notifyTeam, String buildNotes, String filePath, String dsymPath, String lists, Boolean replace)
+    public HockeyappRecorder(String apiToken, Boolean notifyTeam, String buildNotes, String filePath, String dsymPath, String tags, Boolean downloadAllowed, Boolean useChangelog)
     {
-        this.teamToken = teamToken;
         this.apiToken = apiToken;
         this.notifyTeam = notifyTeam;
         this.buildNotes = buildNotes;
         this.filePath = filePath;
         this.dsymPath = dsymPath;
-        this.replace = replace;
-        this.lists = lists;
+        this.downloadAllowed = downloadAllowed;
+        this.useChangelog = useChangelog;
     }
 
     @Override
@@ -107,7 +106,7 @@ public class TestflightRecorder extends Recorder
         if (build.getResult().isWorseOrEqualTo(Result.FAILURE))
             return false;
 
-        listener.getLogger().println("Uploading to testflight");
+        listener.getLogger().println("Uploading to hockeyapp");
 
         File tempDir = null;
         try
@@ -121,16 +120,16 @@ public class TestflightRecorder extends Recorder
             
             File file = getFileLocally(build.getWorkspace(), vars.expand(filePath), tempDir);
             listener.getLogger().println(file);
-
-            HttpClient httpclient = new DefaultHttpClient();
-            HttpPost httpPost = new HttpPost("http://testflightapp.com/api/builds.json");
-            FileBody fileBody = new FileBody(file);
             
+            HttpClient httpclient = new DefaultHttpClient();
+            HttpPost httpPost = new HttpPost("https://rink.hockeyapp.net/api/2/apps/upload");
+            FileBody fileBody = new FileBody(file);
+            httpPost.setHeader("X-HockeyAppToken", apiToken);
             MultipartEntity entity = new MultipartEntity();
-            entity.addPart("api_token", new StringBody(apiToken));
-            entity.addPart("team_token", new StringBody(teamToken));
             entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
-            entity.addPart("file", fileBody);
+            entity.addPart("notes_type", new StringBody("0"));
+            
+            entity.addPart("ipa", fileBody);
             
             if (!StringUtils.isEmpty(dsymPath)) {
               File dsymFile = getFileLocally(build.getWorkspace(), vars.expand(dsymPath), tempDir);
@@ -139,19 +138,18 @@ public class TestflightRecorder extends Recorder
               entity.addPart("dsym", dsymFileBody);
             }
             
-            if (lists.length() > 0)
-                entity.addPart("distribution_lists", new StringBody(lists));
-            entity.addPart("notify", new StringBody(notifyTeam ? "True" : "False"));
-            entity.addPart("replace", new StringBody(replace ? "True" : "False"));
+            if (tags!=null && tags.length() > 0)
+                entity.addPart("tags", new StringBody(tags));
+            entity.addPart("notify", new StringBody(notifyTeam ? "1" : "0"));
+            entity.addPart("status", new StringBody(downloadAllowed ? "2" : "1"));
             httpPost.setEntity(entity);
-
             HttpResponse response = httpclient.execute(httpPost);
             HttpEntity resEntity = response.getEntity();
 
             InputStream is = resEntity.getContent();
 
             // Improved error handling.
-            if (response.getStatusLine().getStatusCode() != 200) {
+            if (response.getStatusLine().getStatusCode() != 201) {
                 String responseBody = new Scanner(is).useDelimiter("\\A").next();
                 listener.getLogger().println("Incorrect response code: " + response.getStatusLine().getStatusCode());
                 listener.getLogger().println(responseBody);
@@ -162,21 +160,21 @@ public class TestflightRecorder extends Recorder
 
             final Map parsedMap = (Map)parser.parse(new BufferedReader(new InputStreamReader(is)));
 
-            TestflightBuildAction installAction = new TestflightBuildAction();
-            installAction.displayName = "Testflight Install Link";
+            HockeyappBuildAction installAction = new HockeyappBuildAction();
+            installAction.displayName = "Hockeyapp Install Link";
             installAction.iconFileName = "package.gif";
-            installAction.urlName = (String)parsedMap.get("install_url");
+            installAction.urlName = (String)parsedMap.get("public_url");
             build.addAction(installAction);
 
-            TestflightBuildAction configureAction = new TestflightBuildAction();
-            configureAction.displayName = "Testflight Configuration Link";
+            HockeyappBuildAction configureAction = new HockeyappBuildAction();
+            configureAction.displayName = "Hockeyapp Configuration Link";
             configureAction.iconFileName = "gear2.gif";
             configureAction.urlName = (String)parsedMap.get("config_url");
             build.addAction(configureAction);
         }
         catch (Exception e)
         {
-            listener.getLogger().println(e);
+            e.printStackTrace(listener.getLogger());
             return false;
         }
         finally
@@ -193,7 +191,7 @@ public class TestflightRecorder extends Recorder
                 }
                 catch (IOException e1)
                 {
-                    listener.getLogger().println(e1);
+                	e1.printStackTrace(listener.getLogger());
                 }
             }
         }
@@ -222,7 +220,7 @@ public class TestflightRecorder extends Recorder
     @Override
     public Collection<? extends Action> getProjectActions(AbstractProject<?, ?> project)
     {
-        ArrayList<TestflightBuildAction> actions = new ArrayList<TestflightBuildAction>();
+        ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
         RunList<? extends AbstractBuild<?,?>> builds = project.getBuilds();
 
         Collection predicated = CollectionUtils.select(builds, new Predicate() {
@@ -237,12 +235,12 @@ public class TestflightRecorder extends Recorder
         Collections.reverse(filteredList);
         for (AbstractBuild<?,?> build : filteredList)
         {
-           List<TestflightBuildAction> testflightActions = build.getActions(TestflightBuildAction.class);
-           if (testflightActions != null && testflightActions.size() > 0)
+           List<HockeyappBuildAction> hockeyappActions = build.getActions(HockeyappBuildAction.class);
+           if (hockeyappActions != null && hockeyappActions.size() > 0)
            {
-               for (TestflightBuildAction action : testflightActions)
+               for (HockeyappBuildAction action : hockeyappActions)
                {
-                   actions.add(new TestflightBuildAction(action));
+                   actions.add(new HockeyappBuildAction(action));
                }
                break;
            }
@@ -255,7 +253,7 @@ public class TestflightRecorder extends Recorder
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher>
     {
         public DescriptorImpl() {
-            super(TestflightRecorder.class);
+            super(HockeyappRecorder.class);
             load();
         }
                 
@@ -276,7 +274,7 @@ public class TestflightRecorder extends Recorder
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
-            return "Upload to Testflight";
+            return "Upload to Hockeyapp";
         }
     }
 }
