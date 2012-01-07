@@ -12,6 +12,9 @@
   <f:entry title="HockeyAppToken" field="apiToken">
     <f:textbox />
   </f:entry>
+  <f:entry title="Public ID / App ID" field="appId">
+    <f:textbox />
+  </f:entry>
 
   <f:entry title="IPA File" field="filePath">
     <f:textbox />
@@ -34,6 +37,12 @@
     </f:entry>
     <f:entry title="Use changelog as build notes" field="useChangelog">
     	<f:checkbox />
+    </f:entry>
+    <f:entry title="Cleanup old versions at hockeyapp" field="cleanupOld">
+    	<f:checkbox />
+    </f:entry>
+    <f:entry title="Numbers of old versions to keep" field="numberOldVersions">
+        <f:textbox />
     </f:entry>
   </f:advanced>
 </j:jelly>
