@@ -5,6 +5,7 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.model.*;
+import hudson.model.AbstractBuild;
 import hudson.tasks.*;
 import hudson.util.RunList;
 import org.apache.commons.collections.Predicate;
@@ -18,11 +19,10 @@ import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.kohsuke.stapler.DataBoundConstructor;
+import hudson.scm.ChangeLogSet.Entry;
 import java.io.*;
 import java.util.*;
 
@@ -126,7 +126,7 @@ public class HockeyappRecorder extends Recorder {
 	}
 
 	@Override
-	public boolean perform(AbstractBuild build, Launcher launcher,
+	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
 			BuildListener listener) {
 		if (build.getResult().isWorseOrEqualTo(Result.FAILURE))
 			return false;
@@ -151,7 +151,23 @@ public class HockeyappRecorder extends Recorder {
 			FileBody fileBody = new FileBody(file);
 			httpPost.setHeader("X-HockeyAppToken", apiToken);
 			MultipartEntity entity = new MultipartEntity();
+			if (!useChangelog) {
 			entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
+			} else {
+			//StringBuilder sb = new StringBuilder(super.buildCompletionMessage(publisher,build,listener));
+			StringBuilder sb = new StringBuilder();
+			 if (!build.getChangeSet().isEmptySet()) {
+		            boolean hasManyChangeSets = build.getChangeSet().getItems().length > 1;
+		            for (Entry entry : build.getChangeSet()) {
+		                sb.append("\n");
+		                if (hasManyChangeSets) {
+		                    sb.append("* ");
+		                }
+		                sb.append(entry.getAuthor()).append(": ").append(entry.getMsg());
+		            }
+		        }
+			 entity.addPart("notes", new StringBody(sb.toString()));
+			}
 			entity.addPart("notes_type", new StringBody("0"));
 
 			entity.addPart("ipa", fileBody);
@@ -258,7 +274,8 @@ public class HockeyappRecorder extends Recorder {
 		ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
 		RunList<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
 
-		Collection predicated = CollectionUtils.select(builds, new Predicate() {
+		@SuppressWarnings("unchecked")
+		Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, new Predicate() {
 			public boolean evaluate(Object o) {
 				return ((AbstractBuild<?, ?>) o).getResult().isBetterOrEqualTo(
 						Result.SUCCESS);

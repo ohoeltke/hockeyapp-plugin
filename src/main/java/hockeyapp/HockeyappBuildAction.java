@@ -1,11 +1,6 @@
 package hockeyapp;
-
-import com.sun.org.apache.bcel.internal.generic.RET;
-import com.sun.org.apache.bcel.internal.generic.RETURN;
 import hudson.model.Action;
 import hudson.model.ProminentProjectAction;
-
-import java.awt.*;
 
 public class HockeyappBuildAction implements ProminentProjectAction
 {
