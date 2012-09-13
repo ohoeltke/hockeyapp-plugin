@@ -17,7 +17,7 @@
   <repositories>
     <repository>
       <id>m.g.o-public</id>
-      <url>https://maven.java.net/content/groups/public/</url>
+      <url>http://repo.jenkins-ci.org/public</url>
     </repository>
   </repositories>
 
@@ -44,7 +44,7 @@
   <pluginRepositories>
     <pluginRepository>
       <id>m.g.o-public</id>
-      <url>https://maven.java.net/content/groups/public/</url>
+      <url>http://repo.jenkins-ci.org/public</url>
     </pluginRepository>
   </pluginRepositories>
 
