@@ -3,7 +3,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>1.399</version><!-- which version of Jenkins is this plugin built against? -->
+    <version>1.481</version><!-- which version of Jenkins is this plugin built against? -->
   </parent>
 
   <groupId>org.jenkins-ci.plugins</groupId>
@@ -17,7 +17,7 @@
   <repositories>
     <repository>
       <id>m.g.o-public</id>
-      <url>http://maven.glassfish.org/content/groups/public/</url>
+      <url>http://repo.jenkins-ci.org/public</url>
     </repository>
   </repositories>
 
@@ -44,7 +44,7 @@
   <pluginRepositories>
     <pluginRepository>
       <id>m.g.o-public</id>
-      <url>http://maven.glassfish.org/content/groups/public/</url>
+      <url>http://repo.jenkins-ci.org/public</url>
     </pluginRepository>
   </pluginRepositories>
 
