@@ -22,18 +22,12 @@
   </repositories>
 
   <scm>
-    <connection>scm:git:ssh://github.com/ohoeltke/hockeyapp-plugin.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/ohoeltke/hockeyapp-plugin.git</developerConnection>
-    <url>https://github.com/ohoeltke/hockeyapp-plugin</url>
+    <connection>scm:git:ssh://github.com/jenkinsci/hockeyapp-plugin.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/jenkinsci/hockeyapp-plugin.git</developerConnection>
+    <url>https://github.com/jenkinsci/hockeyapp-plugin</url>
   </scm>
 
-  <url>https://github.com/ohoeltke/hockeyapp-plugin</url>
-
-
-  <issueManagement>
-  	<system>github</system>
-  	<url>https://github.com/ohoeltke/hockeyapp-plugin/issues</url>
-  </issueManagement>
+  <url>http://wiki.jenkins-ci.org/display/JENKINS/Hockeyapp+Plugin</url>
   <developers>
     <developer>
       <id>ohoeltke</id>
