@@ -218,8 +218,15 @@ public class HockeyappRecorder extends Recorder {
 		return true;
 	}
 
-	private File getFileLocally(FilePath workingDir, String strFile,
+	private static File getFileLocally(FilePath workingDir, String strFile,
 			File tempDir) throws IOException, InterruptedException {
+		// Due to the previous inconsistency about whether or not to use absolute paths,
+		// here we automatically remove the workspace, so that 'strFile' is relative
+		// and existing jobs continue to function, regardless of how they were configured
+		if (strFile.startsWith(workingDir.getRemote())) {
+			strFile = strFile.substring(workingDir.getRemote().length() + 1);
+		}
+
 		if (workingDir.isRemote()) {
 			FilePath remoteFile = new FilePath(workingDir, strFile);
 			File file = new File(tempDir, remoteFile.getName());
@@ -228,9 +235,9 @@ public class HockeyappRecorder extends Recorder {
 			remoteFile.copyTo(fos);
 			fos.close();
 			return file;
-		} else {
-			return new File(strFile);
 		}
+
+		return new File(workingDir.getRemote(), strFile);
 	}
 
 	@Override
