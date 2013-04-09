@@ -189,14 +189,18 @@ public class HockeyappRecorder extends Recorder {
 					listener.getLogger().println(Messages.ABORTING_CLEANUP());
 					return false;
 				}
-				if (numberOldVersions == null) {
+				if (numberOldVersions == null || !StringUtils.isNumeric(numberOldVersions)) {
 					listener.getLogger().println(Messages.COUNT_MISSING_FOR_CLEANUP());
+					listener.getLogger().println(Messages.ABORTING_CLEANUP());
+					return false;
+				}
+				if (Integer.parseInt(numberOldVersions) < 1) {
+					listener.getLogger().println(Messages.TOO_FEW_VERSIONS_RETAINED());
 					listener.getLogger().println(Messages.ABORTING_CLEANUP());
 					return false;
 				}
 				cleanupOldVersions(listener);
 			}
-
 		} catch (Exception e) {
 			e.printStackTrace(listener.getLogger());
 			return false;
@@ -270,53 +274,43 @@ public class HockeyappRecorder extends Recorder {
 	}
 
 	private boolean cleanupOldVersions(BuildListener listener) {
-		if (StringUtils.isNumeric(numberOldVersions)) {
-			if (Integer.parseInt(numberOldVersions) < 1) {
-				listener.getLogger().println(Messages.TOO_FEW_VERSIONS_RETAINED());
-				listener.getLogger().println(Messages.ABORTING_CLEANUP());
-			}
-			try {
-				HttpClient httpclient = new DefaultHttpClient();
-				HttpPost httpPost = new HttpPost(
-						"https://rink.hockeyapp.net/api/2/apps/" + appId
-								+ "/app_versions/delete");
-				httpPost.setHeader("X-HockeyAppToken", apiToken);
-				List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(
-						1);
-				nameValuePairs.add(new BasicNameValuePair("keep",
-						numberOldVersions));
-				httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-				HttpResponse response = httpclient.execute(httpPost);
-				HttpEntity resEntity = response.getEntity();
-				if (resEntity != null) {
-					InputStream is = resEntity.getContent();
+		try {
+			HttpClient httpclient = new DefaultHttpClient();
+			HttpPost httpPost = new HttpPost(
+			        "https://rink.hockeyapp.net/api/2/apps/" + appId
+						+ "/app_versions/delete");
+			httpPost.setHeader("X-HockeyAppToken", apiToken);
+			List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+			nameValuePairs.add(new BasicNameValuePair("keep", numberOldVersions));
+			httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+			HttpResponse response = httpclient.execute(httpPost);
+			HttpEntity resEntity = response.getEntity();
+			if (resEntity != null) {
+				InputStream is = resEntity.getContent();
 
-					// Improved error handling.
-					if (response.getStatusLine().getStatusCode() != 200) {
-						String responseBody = new Scanner(is).useDelimiter(
-								"\\A").next();
-						listener.getLogger().println(
-						        Messages.UNEXPECTED_RESPONSE_CODE(response.getStatusLine()
-												.getStatusCode()));
-						listener.getLogger().println(responseBody);
-						return false;
-					}
-
-					JSONParser parser = new JSONParser();
-
-					final Map parsedMap = (Map) parser
-							.parse(new BufferedReader(new InputStreamReader(is)));
+				// Improved error handling.
+				if (response.getStatusLine().getStatusCode() != 200) {
+					String responseBody = new Scanner(is).useDelimiter(
+						"\\A").next();
 					listener.getLogger().println(
-							Messages.DELETED_OLD_VERSIONS(String.valueOf(
-							        parsedMap.get("total_entries"))));
+					        Messages.UNEXPECTED_RESPONSE_CODE(
+					                response.getStatusLine().getStatusCode()));
+					listener.getLogger().println(responseBody);
+					return false;
 				}
-			} catch (Exception e) {
-				e.printStackTrace(listener.getLogger());
-				return false;
+
+				JSONParser parser = new JSONParser();
+				final Map parsedMap = (Map) parser.parse(
+				        new BufferedReader(new InputStreamReader(is)));
+				listener.getLogger().println(
+					Messages.DELETED_OLD_VERSIONS(String.valueOf(
+					        parsedMap.get("total_entries"))));
 			}
-			return true;
+		} catch (Exception e) {
+			e.printStackTrace(listener.getLogger());
+			return false;
 		}
-		return false;
+		return true;
 	}
 
 	@Extension
