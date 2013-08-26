@@ -50,12 +50,13 @@ public class HockeyappRecorder extends Recorder {
 	@Exported public boolean cleanupOld;
 	@Exported public String numberOldVersions;
 	@Exported public boolean useAppVersionURL;
+	@Exported public boolean useNotesTypeMarkdown;
 
     @DataBoundConstructor
 	public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
 			String buildNotes, String filePath, String dsymPath, String tags,
 			boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
-			String numberOldVersions, boolean useAppVersionURL) {
+			String numberOldVersions, boolean useAppVersionURL, boolean useNotesTypeMarkdown) {
 		this.apiToken = Util.fixEmptyAndTrim(apiToken);
 		this.appId = Util.fixEmptyAndTrim(appId);
 		this.notifyTeam = notifyTeam;
@@ -68,7 +69,8 @@ public class HockeyappRecorder extends Recorder {
 		this.cleanupOld = cleanupOld;
 		this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
         this.useAppVersionURL = useAppVersionURL;
-	}
+        this.useNotesTypeMarkdown = useNotesTypeMarkdown;
+    }
 
 	@Override
 	public DescriptorImpl getDescriptor() {
@@ -130,10 +132,11 @@ public class HockeyappRecorder extends Recorder {
 		            }
 		        }
 			 entity.addPart("notes", new StringBody(sb.toString()));
-			} else if (buildNotes != null) {
-			    entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
-			}
-			entity.addPart("notes_type", new StringBody("0"));
+             entity.addPart("notes_type", new StringBody("0"));
+            } else if (buildNotes != null) {
+                entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
+                entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
+            }
 
 			entity.addPart("ipa", fileBody);
 
