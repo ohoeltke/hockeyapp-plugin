@@ -25,6 +25,7 @@ import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
 import hudson.scm.ChangeLogSet.Entry;
 import java.io.*;
+import java.nio.charset.Charset;
 import java.util.*;
 
 import net.sf.json.JSONObject;
@@ -51,6 +52,8 @@ public class HockeyappRecorder extends Recorder {
 	@Exported public String numberOldVersions;
 	@Exported public boolean useAppVersionURL;
 	@Exported public boolean useNotesTypeMarkdown;
+
+    private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
     @DataBoundConstructor
 	public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
@@ -131,10 +134,10 @@ public class HockeyappRecorder extends Recorder {
 		                sb.append(entry.getAuthor()).append(": ").append(entry.getMsg());
 		            }
 		        }
-			 entity.addPart("notes", new StringBody(sb.toString()));
+			 entity.addPart("notes", new StringBody(sb.toString(), UTF8_CHARSET));
              entity.addPart("notes_type", new StringBody("0"));
             } else if (buildNotes != null) {
-                entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
+                entity.addPart("notes", new StringBody(vars.expand(buildNotes), UTF8_CHARSET));
                 entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
             }
 
