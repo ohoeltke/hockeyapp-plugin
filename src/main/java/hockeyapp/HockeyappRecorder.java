@@ -10,6 +10,7 @@ import hudson.model.AbstractBuild;
 import hudson.tasks.*;
 import hudson.util.RunList;
 import org.apache.commons.collections.Predicate;
+import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -52,6 +53,7 @@ public class HockeyappRecorder extends Recorder {
 	@Exported public String numberOldVersions;
 	@Exported public boolean useAppVersionURL;
 	@Exported public boolean useNotesTypeMarkdown;
+    @Exported public String releaseNotesFileName;
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
@@ -59,7 +61,7 @@ public class HockeyappRecorder extends Recorder {
 	public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
 			String buildNotes, String filePath, String dsymPath, String tags,
 			boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
-			String numberOldVersions, boolean useAppVersionURL, boolean useNotesTypeMarkdown) {
+			String numberOldVersions, boolean useAppVersionURL, boolean useNotesTypeMarkdown, String releaseNotesFileName) {
 		this.apiToken = Util.fixEmptyAndTrim(apiToken);
 		this.appId = Util.fixEmptyAndTrim(appId);
 		this.notifyTeam = notifyTeam;
@@ -73,6 +75,7 @@ public class HockeyappRecorder extends Recorder {
 		this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
         this.useAppVersionURL = useAppVersionURL;
         this.useNotesTypeMarkdown = useNotesTypeMarkdown;
+        this.releaseNotesFileName = Util.fixEmptyAndTrim(releaseNotesFileName);
     }
 
 	@Override
@@ -138,6 +141,12 @@ public class HockeyappRecorder extends Recorder {
              entity.addPart("notes_type", new StringBody("0"));
             } else if (buildNotes != null) {
                 entity.addPart("notes", new StringBody(vars.expand(buildNotes), UTF8_CHARSET));
+                entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
+            } else if (releaseNotesFileName != null) {
+                File releaseNotesFile = getFileLocally(build.getWorkspace(), vars.expand(releaseNotesFileName), tempDir);
+                listener.getLogger().println(releaseNotesFile);
+                String releaseNotes = readReleaseNotesFile(releaseNotesFile);
+                entity.addPart("notes", new StringBody(releaseNotes, UTF8_CHARSET));
                 entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
             }
 
@@ -351,4 +360,13 @@ public class HockeyappRecorder extends Recorder {
 		    return Messages.UPLOAD_TO_HOCKEYAPP();
 		}
 	}
+
+    private String readReleaseNotesFile(File file) throws IOException {
+        FileInputStream inputStream = new FileInputStream(file);
+        try {
+            return IOUtils.toString(inputStream, "UTF-8");
+        } finally {
+            inputStream.close();
+        }
+    }
 }
