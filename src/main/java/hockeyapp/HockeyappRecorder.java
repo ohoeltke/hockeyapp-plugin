@@ -261,12 +261,16 @@ public class HockeyappRecorder extends Recorder {
 			AbstractProject<?, ?> project) {
 		ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
 		RunList<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
-
+		
 		@SuppressWarnings("unchecked")
 		Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, new Predicate() {
 			public boolean evaluate(Object o) {
-				return ((AbstractBuild<?, ?>) o).getResult().isBetterOrEqualTo(
-						Result.SUCCESS);
+				if(o == null || ((AbstractBuild<?, ?>) o).getResult() == null) {
+					return false;
+				} else {
+					return ((AbstractBuild<?, ?>) o).getResult().isBetterOrEqualTo(
+							Result.SUCCESS);
+				}
 			}
 		});
 
