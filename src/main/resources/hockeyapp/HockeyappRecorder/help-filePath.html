@@ -3,4 +3,7 @@ The path, relative to the build's workspace, to the generated .ipa (iOS), .app.z
 You can include build variables here like <code>${BUILD_NUMBER}</code> and they'll be expanded at build time.
 <p/>
 e.g. "MyApp/build/Beta-iphoneos/MyApp-Beta-${BUILD_NUMBER}.ipa if your use ${BUILD_NUMBER} as technical version number (CFBundleShortVersionString).
+<p/>
+Can use wildcards like 'module/dist/**/*.ipa'.
+See <a href='http://ant.apache.org/manual/Types/fileset.html'> the @includes of Ant fileset</a> for the exact format.
 </div>

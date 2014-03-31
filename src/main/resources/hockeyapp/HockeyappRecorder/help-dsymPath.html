@@ -3,4 +3,7 @@ An optional path, relative to the build's workspace, to the generated dSYM.zip (
 You can include build variables here like <code>${BUILD_NUMBER}</code> and they'll be expanded at build time.<br/>
 <p/>
 e.g. "MyApp/build/Beta-iphoneos/MyApp-Beta-${BUILD_NUMBER}.dsym.zip if your use ${BUILD_NUMBER} as technical version number (CFBundleShortVersionString).
+<p/>
+Can use wildcards like 'module/dist/**/*.dSYM.zip'.
+See <a href='http://ant.apache.org/manual/Types/fileset.html'> the @includes of Ant fileset</a> for the exact format.
 </div>

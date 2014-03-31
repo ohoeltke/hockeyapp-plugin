@@ -22,6 +22,7 @@ import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.client.HttpClient;
+import org.apache.tools.ant.types.FileSet;
 import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
 import hudson.scm.ChangeLogSet.Entry;
@@ -103,8 +104,10 @@ public class HockeyappRecorder extends Recorder {
 			tempDir.delete();
 			tempDir.mkdirs();
 
-			File file = getFileLocally(build.getWorkspace(),
-					vars.expand(filePath), tempDir);
+			FileSet fileSet = Util.createFileSet(new File(build.getWorkspace().getRemote()),
+					vars.expand(filePath), null);
+			// Take the first one that matches the pattern
+			File file = new File(fileSet.iterator().next().toString());
 			listener.getLogger().println(file);
 
 			HttpClient httpclient = new DefaultHttpClient();
@@ -153,8 +156,10 @@ public class HockeyappRecorder extends Recorder {
 			entity.addPart("ipa", fileBody);
 
 			if (dsymPath != null) {
-				File dsymFile = getFileLocally(build.getWorkspace(),
-						vars.expand(dsymPath), tempDir);
+				FileSet dsymFileSet = Util.createFileSet(new File(build.getWorkspace().getRemote()),
+					vars.expand(dsymPath), null);
+				// Take the first one that matches the pattern
+				File dsymFile = new File(dsymFileSet.iterator().next().toString());
 				listener.getLogger().println(dsymFile);
 				FileBody dsymFileBody = new FileBody(dsymFile);
 				entity.addPart("dsym", dsymFileBody);
