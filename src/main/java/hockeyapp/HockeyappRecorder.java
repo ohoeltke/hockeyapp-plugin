@@ -351,8 +351,8 @@ public class HockeyappRecorder extends Recorder {
 		}
 
 		public String getDefaultToken() {
-            return defaultToken;
-        }
+			return defaultToken;
+		}
 
 		public void setDefaultToken(String defaultToken) {
 			this.defaultToken = defaultToken;
