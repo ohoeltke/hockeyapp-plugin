@@ -63,6 +63,7 @@ public class HockeyappRecorder extends Recorder {
 			String buildNotes, String filePath, String dsymPath, String tags,
 			boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
 			String numberOldVersions, boolean useAppVersionURL, boolean useNotesTypeMarkdown, String releaseNotesFileName) {
+
 		this.apiToken = Util.fixEmptyAndTrim(apiToken);
 		this.appId = Util.fixEmptyAndTrim(appId);
 		this.notifyTeam = notifyTeam;
@@ -86,6 +87,15 @@ public class HockeyappRecorder extends Recorder {
 
 	public BuildStepMonitor getRequiredMonitorService() {
 		return BuildStepMonitor.NONE;
+	}
+
+	// Not a getter since build has to know proper value
+	public String fetchApiToken() {
+		if (this.apiToken == null) {
+			return getDescriptor().getDefaultToken();
+		} else {
+			return this.apiToken;
+		}
 	}
 
 	@Override
@@ -125,7 +135,7 @@ public class HockeyappRecorder extends Recorder {
 
             }
 			FileBody fileBody = new FileBody(file);
-			httpPost.setHeader("X-HockeyAppToken", vars.expand(apiToken));
+			httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken()));
 			MultipartEntity entity = new MultipartEntity();
 			if (useChangelog) {
 			//StringBuilder sb = new StringBuilder(super.buildCompletionMessage(publisher,build,listener));
@@ -301,7 +311,7 @@ public class HockeyappRecorder extends Recorder {
 			HttpPost httpPost = new HttpPost(
 			        "https://rink.hockeyapp.net/api/2/apps/" + vars.expand(appId)
 						+ "/app_versions/delete");
-			httpPost.setHeader("X-HockeyAppToken", vars.expand(apiToken));
+			httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken()));
 			List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
 			nameValuePairs.add(new BasicNameValuePair("keep", numberOldVersions));
 			httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
@@ -344,6 +354,17 @@ public class HockeyappRecorder extends Recorder {
 			super(HockeyappRecorder.class);
 			load();
 		}
+
+		public String getDefaultToken() {
+			return defaultToken;
+		}
+
+		public void setDefaultToken(String defaultToken) {
+			this.defaultToken = defaultToken;
+			save();
+		}
+
+		private String defaultToken;
 
 		public boolean isApplicable(Class<? extends AbstractProject> aClass) {
 			// Indicates that this builder can be used with all kinds of project
