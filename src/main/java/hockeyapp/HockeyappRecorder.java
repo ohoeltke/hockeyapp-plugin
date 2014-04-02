@@ -228,6 +228,9 @@ public class HockeyappRecorder extends Recorder {
 
 			final Map parsedMap = (Map) parser.parse(responseBody);
 
+			// Shadow defined appId for cleanup purposes
+			String appId = (String) parsedMap.get("public_identifier");
+
 			HockeyappBuildAction installAction = new HockeyappBuildAction();
 			installAction.displayName = Messages.HOCKEYAPP_INSTALL_LINK();
 			installAction.iconFileName = "package.gif";
@@ -256,7 +259,7 @@ public class HockeyappRecorder extends Recorder {
 					listener.getLogger().println(Messages.ABORTING_CLEANUP());
 					return false;
 				}
-				cleanupOldVersions(listener, vars);
+				cleanupOldVersions(listener, vars,appId);
 			}
 		} catch (Exception e) {
 			e.printStackTrace(listener.getLogger());
@@ -348,7 +351,7 @@ public class HockeyappRecorder extends Recorder {
 		return actions;
 	}
 
-	private boolean cleanupOldVersions(BuildListener listener, EnvVars vars) {
+	private boolean cleanupOldVersions(BuildListener listener, EnvVars vars, String appId) {
 		try {
 			HttpClient httpclient = createPreconfiguredHttpClient();
 			HttpPost httpPost = new HttpPost(
