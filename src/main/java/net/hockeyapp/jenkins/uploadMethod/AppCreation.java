@@ -30,6 +30,12 @@ public class AppCreation extends RadioButtonSupport {
     @Extension
     public static class DescriptorImpl extends RadioButtonSupportDescriptor<AppCreation> {
 
+        public DescriptorImpl() {
+            super();
+            logger.info("Called 'DescriptorImpl'");
+            load();
+        }
+
         @Override
         public String getDisplayName() {
             return "Upload App";

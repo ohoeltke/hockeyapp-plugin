@@ -44,6 +44,11 @@ public class FileReleaseNotes extends RadioButtonSupport {
     @Extension
     public static class DescriptorImpl extends RadioButtonSupportDescriptor<FileReleaseNotes> {
 
+        public DescriptorImpl() {
+            super();
+            load();
+        }
+
         @Override
         public String getDisplayName() {
             return "Load Release Notes from File";

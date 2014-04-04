@@ -25,6 +25,12 @@ public class ChangelogReleaseNotes extends RadioButtonSupport {
 
     @Extension
     public static class DescriptorImpl extends RadioButtonSupportDescriptor<ChangelogReleaseNotes> {
+
+        public DescriptorImpl() {
+            super();
+            load();
+        }
+
         @Override
         public String getDisplayName() {
             return "Use Change Log";

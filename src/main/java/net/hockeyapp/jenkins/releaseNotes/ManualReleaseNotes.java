@@ -44,6 +44,11 @@ public class ManualReleaseNotes extends RadioButtonSupport {
     @Extension
     public static class DescriptorImpl extends RadioButtonSupportDescriptor<ManualReleaseNotes> {
 
+        public DescriptorImpl() {
+            super();
+            load();
+        }
+
         @Override
         public String getDisplayName() {
             return "Input Release Notes";
