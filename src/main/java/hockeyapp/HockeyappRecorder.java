@@ -360,8 +360,7 @@ public class HockeyappRecorder extends Recorder {
 
             final Map parsedMap = (Map) parser.parse(responseBody);
 
-            // Shadow defined appId for cleanup purposes
-            String appId = (String) parsedMap.get("public_identifier");
+
 
             HockeyappBuildAction installAction = new HockeyappBuildAction();
             installAction.displayName = Messages.HOCKEYAPP_INSTALL_LINK();
@@ -376,14 +375,15 @@ public class HockeyappRecorder extends Recorder {
             build.addAction(configureAction);
 
             //TODO
+            String appId;
             if (numberOldVersions != null) {
-                String id;
                 if (uploadMethod instanceof VersionCreation) {
-                    id = ((VersionCreation) uploadMethod).getAppId();
+                    appId = ((VersionCreation) uploadMethod).getAppId();
                 } else {
-                    id = null;
+                    //load App ID from reponse
+                    appId = (String) parsedMap.get("public_identifier");
                 }
-                if (id == null) {
+                if (appId == null) {
                     listener.getLogger().println(Messages.APP_ID_MISSING_FOR_CLEANUP());
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
                     return false;
@@ -398,7 +398,7 @@ public class HockeyappRecorder extends Recorder {
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
                     return false;
                 }
-                cleanupOldVersions(listener, vars, id);
+                cleanupOldVersions(listener, vars, appId);
             }
         } catch (Exception e) {
             e.printStackTrace(listener.getLogger());
@@ -416,6 +416,11 @@ public class HockeyappRecorder extends Recorder {
         }
 
         return true;
+    }
+
+    private String getAppIdFromResponseBody(String responseBody) {
+
+        return null;
     }
 
     private void createReleaseNotes(AbstractBuild<?, ?> build, MultipartEntity entity, BuildListener listener, File tempDir, EnvVars vars) throws IOException, InterruptedException {
@@ -689,7 +694,11 @@ public class HockeyappRecorder extends Recorder {
         @SuppressWarnings("unused")
         public FormValidation doCheckApiToken(@QueryParameter String value) throws IOException, ServletException {
             if(value.isEmpty()) {
-                return FormValidation.error("You must enter an API token!");
+                if (defaultToken != null && defaultToken.length() > 0) {
+                    return FormValidation.warning("Default API Token is used!");
+                } else {
+                    return FormValidation.error("You must enter an API Token!");
+                }
             } else {
                 return FormValidation.ok();
             }
@@ -709,21 +718,30 @@ public class HockeyappRecorder extends Recorder {
         @SuppressWarnings("unused")
         public FormValidation doCheckNumberOldVersions(@QueryParameter String value) throws IOException, ServletException {
             if(value.isEmpty()) {
-                return FormValidation.error("You must specify a positive number!");
+                return FormValidation.error("You must specify a positive Number!");
             } else {
                 try {
                     int number = Integer.parseInt(value);
                     if (number > 0) {
                         return FormValidation.ok();
                     } else {
-                        return FormValidation.error("You must specify a positive number!");
+                        return FormValidation.error("You must specify a positive Number!");
                     }
                 } catch (NumberFormatException e) {
-                    return FormValidation.error("You must specify a positive number!");
+                    return FormValidation.error("You must specify a positive Number!");
                 }
 
             }
 
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckDebugMode(String value) {
+            if (globalDebugMode) {
+                return FormValidation.warning("Debug Mode is enabled globally!");
+            } else {
+                return FormValidation.ok();
+            }
         }
 
     }

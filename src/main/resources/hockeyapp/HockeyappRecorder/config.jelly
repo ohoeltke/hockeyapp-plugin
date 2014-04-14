@@ -64,7 +64,7 @@
   <f:advanced>
       <f:block>
           <table width="100%">
-              <f:optionalBlock name="oldVersionHolder" title="Handling of Old Versions" checked="${instance.baseUrl != numberOldVersions}">
+              <f:optionalBlock name="oldVersionHolder" title="Delete old Versions" checked="${instance.baseUrl != numberOldVersions}">
                   <f:entry title="${%Number of old Versions to keep}" field="numberOldVersions">
                       <f:textbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkNumberOldVersions?value='+escape(this.value)"/>
                   </f:entry>
@@ -77,7 +77,7 @@
 
       <f:block>
           <table width="100%">
-              <f:optionalBlock name="baseUrlHolder" title="Override Hockey URL" checked="${instance.baseUrl != null}">
+              <f:optionalBlock name="baseUrlHolder" title="Custom HockeyApp API URL" checked="${instance.baseUrl != null}">
                   <f:entry title="URL" field="baseUrl">
                       <f:textbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkBaseUrl?value='+escape(this.value)"/>
                   </f:entry>
@@ -89,8 +89,8 @@
 
 
 
-    <f:entry title="${%Enable DEBUG Mode}" field="debugMode">
-        <f:checkbox />
+    <f:entry title="${%Enable Debug Mode}" field="debugMode">
+        <f:checkbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkDebugMode?value='+escape(this.value)"/>
     </f:entry>
     <!--f:entry title="${%Use Markdown for Release notes}" field="useNotesTypeMarkdown">
         <f:checkbox />
