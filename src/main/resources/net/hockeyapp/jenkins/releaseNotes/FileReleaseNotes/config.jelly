@@ -1,7 +1,7 @@
 <j:jelly xmlns:j="jelly:core"
          xmlns:f="/lib/form">
     <f:entry title="File Name" field="fileName">
-        <f:textbox/>
+        <f:textbox checkUrl="'descriptorByName/net.hockeyapp.jenkins.releaseNotes.FileReleaseNotes/checkFileName?value='+escape(this.value)"/>
     </f:entry>
     <f:entry title="Interpret Release Notes as Markdown" field="isMarkdown">
         <f:checkbox/>

@@ -7,6 +7,7 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
 import hudson.tasks.Recorder;
+import hudson.util.FormValidation;
 import hudson.util.RunList;
 import jenkins.model.Jenkins;
 import net.hockeyapp.jenkins.RadioButtonSupport;
@@ -37,9 +38,11 @@ import org.apache.http.params.CoreConnectionPNames;
 import org.apache.tools.ant.types.FileSet;
 import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.export.Exported;
 
+import javax.servlet.ServletException;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -48,14 +51,21 @@ import java.util.logging.Logger;
 
 public class HockeyappRecorder extends Recorder {
 
+    public static final Long PLUGIN_VERSION_NUMBER = 1L;
+
+
+    //TODO
+    @Exported
+    public Long pluginVersion;
+
     @Exported
     public String apiToken;
     @Exported
-    public String appId;
+    public transient String appId;
     @Exported
     public boolean notifyTeam;
     @Exported
-    public String buildNotes;
+    public transient String buildNotes;
     @Exported
     public String filePath;
     @Exported
@@ -65,21 +75,23 @@ public class HockeyappRecorder extends Recorder {
     @Exported
     public boolean downloadAllowed;
     @Exported
-    public boolean useChangelog;
+    public transient boolean useChangelog;
     @Exported
-    public boolean cleanupOld;
+    public transient boolean cleanupOld;
     @Exported
     public String numberOldVersions;
     @Exported
-    public boolean useAppVersionURL;
+    public transient boolean useAppVersionURL;
     @Exported
     public boolean debugMode;
     @Exported
-    public boolean useNotesTypeMarkdown;
+    public transient boolean useNotesTypeMarkdown;
     @Exported
-    public String releaseNotesFileName;
+    public transient String releaseNotesFileName;
     @Exported
-    RadioButtonSupport uploadMethod;
+    public RadioButtonSupport uploadMethod;
+    @Exported
+    public String baseUrl;
 
     @Exported
     RadioButtonSupport releaseNotesMethod;
@@ -89,37 +101,44 @@ public class HockeyappRecorder extends Recorder {
     private static Logger LOGGER = Logger.getLogger(HockeyappRecorder.class.getName());
 
     @DataBoundConstructor
-    public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
-                             String buildNotes, String filePath, String dsymPath, String tags,
-                             boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
-                             String numberOldVersions, boolean useAppVersionURL, boolean debugMode,
-                             boolean useNotesTypeMarkdown, String releaseNotesFileName, RadioButtonSupport uploadMethod, RadioButtonSupport releaseNotesMethod) {
+    public HockeyappRecorder(String apiToken, boolean notifyTeam,
+                             String filePath, String dsymPath, String tags,
+                             boolean downloadAllowed,
+                             OldVersionHolder oldVersionHolder, boolean debugMode,
+                             RadioButtonSupport uploadMethod, RadioButtonSupport releaseNotesMethod,
+                             BaseUrlHolder baseUrlHolder) {
 
         this.apiToken = Util.fixEmptyAndTrim(apiToken);
-        this.appId = Util.fixEmptyAndTrim(appId);
+
         this.notifyTeam = notifyTeam;
-        this.buildNotes = Util.fixEmptyAndTrim(buildNotes);
+
         this.filePath = Util.fixEmptyAndTrim(filePath);
         this.dsymPath = Util.fixEmptyAndTrim(dsymPath);
         this.tags = Util.fixEmptyAndTrim(tags);
         this.downloadAllowed = downloadAllowed;
-        this.useChangelog = useChangelog;
-        this.cleanupOld = cleanupOld;
-        this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
-        this.useAppVersionURL = useAppVersionURL;
+
+
+
         this.debugMode = debugMode;
-        this.useNotesTypeMarkdown = useNotesTypeMarkdown;
-        this.releaseNotesFileName = Util.fixEmptyAndTrim(releaseNotesFileName);
+
+
         this.uploadMethod = uploadMethod;
         this.releaseNotesMethod = releaseNotesMethod;
+        this.pluginVersion = PLUGIN_VERSION_NUMBER;
+        if (baseUrlHolder != null) {
+            this.baseUrl = baseUrlHolder.baseUrl;
+        }
+        if (oldVersionHolder != null) {
+            this.numberOldVersions = Util.fixEmptyAndTrim(oldVersionHolder.numberOldVersions);
+        }
     }
 
     @Deprecated
     public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
                              String buildNotes, String filePath, String dsymPath, String tags,
                              boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
-                             String numberOldVersions, boolean useAppVersionURL, boolean debugMode,
-                             boolean useNotesTypeMarkdown, String releaseNotesFileName) {
+                             OldVersionHolder oldVersionHolder, boolean useAppVersionURL, boolean debugMode,
+                             boolean useNotesTypeMarkdown, String releaseNotesFileName, RadioButtonSupport uploadMethod, RadioButtonSupport releaseNotesMethod, BaseUrlHolder baseUrlHolder) {
 
         this.apiToken = Util.fixEmptyAndTrim(apiToken);
         this.appId = Util.fixEmptyAndTrim(appId);
@@ -131,21 +150,89 @@ public class HockeyappRecorder extends Recorder {
         this.downloadAllowed = downloadAllowed;
         this.useChangelog = useChangelog;
         this.cleanupOld = cleanupOld;
-        this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
+
+
         this.useAppVersionURL = useAppVersionURL;
         this.debugMode = debugMode;
         this.useNotesTypeMarkdown = useNotesTypeMarkdown;
         this.releaseNotesFileName = Util.fixEmptyAndTrim(releaseNotesFileName);
-        //this.uploadMethod = uploadMethod;
-        //this.releaseNotesMethod = releaseNotesMethod;
+        this.uploadMethod = uploadMethod;
+        this.releaseNotesMethod = releaseNotesMethod;
+        this.pluginVersion = PLUGIN_VERSION_NUMBER;
+        if (baseUrlHolder != null) {
+            this.baseUrl = baseUrlHolder.baseUrl;
+        }
+        if (oldVersionHolder != null) {
+            this.numberOldVersions = Util.fixEmptyAndTrim(oldVersionHolder.numberOldVersions);
+        }
     }
 
+//    @Deprecated
+//    public HockeyappRecorder(String apiToken, String appId, boolean notifyTeam,
+//                             String buildNotes, String filePath, String dsymPath, String tags,
+//                             boolean downloadAllowed, boolean useChangelog, boolean cleanupOld,
+//                             String numberOldVersions, boolean useAppVersionURL, boolean debugMode,
+//                             boolean useNotesTypeMarkdown, String releaseNotesFileName) {
+//
+//        this.apiToken = Util.fixEmptyAndTrim(apiToken);
+//        this.appId = Util.fixEmptyAndTrim(appId);
+//        this.notifyTeam = notifyTeam;
+//        this.buildNotes = Util.fixEmptyAndTrim(buildNotes);
+//        this.filePath = Util.fixEmptyAndTrim(filePath);
+//        this.dsymPath = Util.fixEmptyAndTrim(dsymPath);
+//        this.tags = Util.fixEmptyAndTrim(tags);
+//        this.downloadAllowed = downloadAllowed;
+//        this.useChangelog = useChangelog;
+//        this.cleanupOld = cleanupOld;
+//        this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
+//        this.useAppVersionURL = useAppVersionURL;
+//        this.debugMode = debugMode;
+//        this.useNotesTypeMarkdown = useNotesTypeMarkdown;
+//        this.releaseNotesFileName = Util.fixEmptyAndTrim(releaseNotesFileName);
+//        //this.uploadMethod = uploadMethod;
+//        //this.releaseNotesMethod = releaseNotesMethod;
+//    }
+
     public RadioButtonSupport getUploadMethod() {
+        LOGGER.info("Called method 'getUploadMethod'");
         return uploadMethod;
     }
 
     public RadioButtonSupport getReleaseNotesMethod() {
         return releaseNotesMethod;
+    }
+
+    public Object readResolve() {
+        LOGGER.info("ReadResolve: " + this.getDescriptor().clazz.getName());
+        if (this.pluginVersion == null || this.pluginVersion < PLUGIN_VERSION_NUMBER) {
+            LOGGER.info("Update Hockey Plugin Configuration");
+            if (useChangelog) {
+
+
+                if (buildNotes != null) {
+                    //  entity.addPart("notes", new StringBody(vars.expand(buildNotes), UTF8_CHARSET));
+                    //  entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
+                    this.releaseNotesMethod = new ManualReleaseNotes(buildNotes, useNotesTypeMarkdown);
+                } else if (releaseNotesFileName != null) {
+//                File releaseNotesFile = getFileLocally(build.getWorkspace(), vars.expand(releaseNotesFileName), tempDir);
+//                listener.getLogger().println(releaseNotesFile);
+//                String releaseNotes = readReleaseNotesFile(releaseNotesFile);
+//                entity.addPart("notes", new StringBody(releaseNotes, UTF8_CHARSET));
+//                entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
+                    this.releaseNotesMethod = new FileReleaseNotes(releaseNotesFileName, useNotesTypeMarkdown);
+                } else {
+                    this.releaseNotesMethod = new ChangelogReleaseNotes();
+                }
+            }
+            if (useAppVersionURL && (appId != null)) {
+                this.uploadMethod = new VersionCreation(appId);
+            } else {
+                this.uploadMethod = new AppCreation();
+            }
+
+
+        }
+        return this;
     }
 
     @Override
@@ -227,32 +314,7 @@ public class HockeyappRecorder extends Recorder {
                 createReleaseNotes(build, entity, listener, tempDir, vars);
 
             }
-            if (useChangelog) {
-                //StringBuilder sb = new StringBuilder(super.buildCompletionMessage(publisher,build,listener));
-                StringBuilder sb = new StringBuilder();
 
-                if (!build.getChangeSet().isEmptySet()) {
-                    boolean hasManyChangeSets = build.getChangeSet().getItems().length > 1;
-                    for (Entry entry : build.getChangeSet()) {
-                        sb.append("\n");
-                        if (hasManyChangeSets) {
-                            sb.append("* ");
-                        }
-                        sb.append(entry.getAuthor()).append(": ").append(entry.getMsg());
-                    }
-                }
-                entity.addPart("notes", new StringBody(sb.toString(), UTF8_CHARSET));
-                entity.addPart("notes_type", new StringBody("0"));
-            } else if (buildNotes != null) {
-                entity.addPart("notes", new StringBody(vars.expand(buildNotes), UTF8_CHARSET));
-                entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
-            } else if (releaseNotesFileName != null) {
-                File releaseNotesFile = getFileLocally(build.getWorkspace(), vars.expand(releaseNotesFileName), tempDir);
-                listener.getLogger().println(releaseNotesFile);
-                String releaseNotes = readReleaseNotesFile(releaseNotesFile);
-                entity.addPart("notes", new StringBody(releaseNotes, UTF8_CHARSET));
-                entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
-            }
 
             entity.addPart("ipa", fileBody);
 
@@ -313,8 +375,15 @@ public class HockeyappRecorder extends Recorder {
             configureAction.urlName = (String) parsedMap.get("config_url");
             build.addAction(configureAction);
 
-            if (cleanupOld) {
-                if (appId == null) {
+            //TODO
+            if (numberOldVersions != null) {
+                String id;
+                if (uploadMethod instanceof VersionCreation) {
+                    id = ((VersionCreation) uploadMethod).getAppId();
+                } else {
+                    id = null;
+                }
+                if (id == null) {
                     listener.getLogger().println(Messages.APP_ID_MISSING_FOR_CLEANUP());
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
                     return false;
@@ -329,7 +398,7 @@ public class HockeyappRecorder extends Recorder {
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
                     return false;
                 }
-                cleanupOldVersions(listener, vars, appId);
+                cleanupOldVersions(listener, vars, id);
             }
         } catch (Exception e) {
             e.printStackTrace(listener.getLogger());
@@ -517,6 +586,30 @@ public class HockeyappRecorder extends Recorder {
         return true;
     }
 
+
+
+    public static class OldVersionHolder {
+
+        private String numberOldVersions;
+
+        @DataBoundConstructor
+        public OldVersionHolder(String numberOldVersions) {
+            this.numberOldVersions = numberOldVersions;
+        }
+
+    }
+
+    public static class BaseUrlHolder {
+
+        private String baseUrl;
+
+        @DataBoundConstructor
+        public BaseUrlHolder(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+    }
+
     @Extension
     // This indicates to Jenkins that this is an implementation of an extension
     // point.
@@ -590,6 +683,47 @@ public class HockeyappRecorder extends Recorder {
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(FileReleaseNotes.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(ManualReleaseNotes.class));
             return uploadMethods;
+        }
+
+        //TODO: check default API-Token
+        @SuppressWarnings("unused")
+        public FormValidation doCheckApiToken(@QueryParameter String value) throws IOException, ServletException {
+            if(value.isEmpty()) {
+                return FormValidation.error("You must enter an API token!");
+            } else {
+                return FormValidation.ok();
+            }
+
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckBaseUrl(@QueryParameter String value) throws IOException, ServletException {
+            if(value.isEmpty()) {
+                return FormValidation.error("You must enter a URL!");
+            } else {
+                return FormValidation.ok();
+            }
+
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckNumberOldVersions(@QueryParameter String value) throws IOException, ServletException {
+            if(value.isEmpty()) {
+                return FormValidation.error("You must specify a positive number!");
+            } else {
+                try {
+                    int number = Integer.parseInt(value);
+                    if (number > 0) {
+                        return FormValidation.ok();
+                    } else {
+                        return FormValidation.error("You must specify a positive number!");
+                    }
+                } catch (NumberFormatException e) {
+                    return FormValidation.error("You must specify a positive number!");
+                }
+
+            }
+
         }
 
     }

@@ -2,11 +2,16 @@ package net.hockeyapp.jenkins.releaseNotes;
 
 import hudson.Extension;
 import hudson.model.Descriptor;
+import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
 import net.hockeyapp.jenkins.RadioButtonSupport;
 import net.hockeyapp.jenkins.RadioButtonSupportDescriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.export.Exported;
+
+import javax.servlet.ServletException;
+import java.io.IOException;
 
 /**
  * Created by ungerts on 03.04.14.
@@ -53,5 +58,16 @@ public class ManualReleaseNotes extends RadioButtonSupport {
         public String getDisplayName() {
             return "Input Release Notes";
         }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckReleaseNotes(@QueryParameter String value) throws IOException, ServletException {
+            if(value.isEmpty()) {
+                return FormValidation.error("You must enter release notes!");
+            } else {
+                return FormValidation.ok();
+            }
+
+        }
+
     }
 }

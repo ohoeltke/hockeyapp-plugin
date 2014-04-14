@@ -9,4 +9,5 @@ import org.kohsuke.stapler.export.ExportedBean;
  */
 @ExportedBean
 public abstract class RadioButtonSupport implements ExtensionPoint, Describable<RadioButtonSupport> {
+
 }

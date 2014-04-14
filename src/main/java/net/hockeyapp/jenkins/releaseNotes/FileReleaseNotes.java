@@ -2,11 +2,16 @@ package net.hockeyapp.jenkins.releaseNotes;
 
 import hudson.Extension;
 import hudson.model.Descriptor;
+import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
 import net.hockeyapp.jenkins.RadioButtonSupport;
 import net.hockeyapp.jenkins.RadioButtonSupportDescriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.export.Exported;
+
+import javax.servlet.ServletException;
+import java.io.IOException;
 
 /**
  * Created by ungerts on 03.04.14.
@@ -52,6 +57,16 @@ public class FileReleaseNotes extends RadioButtonSupport {
         @Override
         public String getDisplayName() {
             return "Load Release Notes from File";
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckFileName(@QueryParameter String value) throws IOException, ServletException {
+            if(value.isEmpty()) {
+                return FormValidation.error("You must enter a file name!");
+            } else {
+                return FormValidation.ok();
+            }
+
         }
     }
 
