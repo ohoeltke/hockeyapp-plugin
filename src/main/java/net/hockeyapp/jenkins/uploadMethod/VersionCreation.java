@@ -55,18 +55,18 @@ public class VersionCreation extends RadioButtonSupport {
         @SuppressWarnings("unused")
         public FormValidation doCheckAppId(@QueryParameter String value) throws IOException, ServletException {
 //            if(value.isEmpty()) {
-//                return FormValidation.error("You must enter an App ID!");
+//                return FormValidation.error("You must enter an App ID.");
 //            } else if(value.length() != 32) {
-//                return FormValidation.error("App ID length must be 32!");
+//                return FormValidation.error("App ID length must be 32.");
 //            } else {
 //                if (value.matches("[0-9A-Fa-f]{32}")) {
 //                    return FormValidation.ok();
 //                } else {
-//                    return FormValidation.warning("Check correctness of App ID!");
+//                    return FormValidation.warning("Check correctness of App ID.");
 //                }
 //            }
             if(value.isEmpty()) {
-                return FormValidation.error("You must enter an App ID!");
+                return FormValidation.error("You must enter an App ID.");
             } else {
                 return FormValidation.ok();
             }

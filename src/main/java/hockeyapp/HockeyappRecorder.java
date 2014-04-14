@@ -15,6 +15,7 @@ import net.hockeyapp.jenkins.RadioButtonSupportDescriptor;
 import net.hockeyapp.jenkins.releaseNotes.ChangelogReleaseNotes;
 import net.hockeyapp.jenkins.releaseNotes.FileReleaseNotes;
 import net.hockeyapp.jenkins.releaseNotes.ManualReleaseNotes;
+import net.hockeyapp.jenkins.releaseNotes.NoReleaseNotes;
 import net.hockeyapp.jenkins.uploadMethod.AppCreation;
 import net.hockeyapp.jenkins.uploadMethod.VersionCreation;
 import net.sf.json.JSONObject;
@@ -44,6 +45,8 @@ import org.kohsuke.stapler.export.Exported;
 
 import javax.servlet.ServletException;
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.logging.Logger;
@@ -52,9 +55,10 @@ import java.util.logging.Logger;
 public class HockeyappRecorder extends Recorder {
 
     public static final Long PLUGIN_VERSION_NUMBER = 1L;
+    private static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
 
 
-    //TODO
+
     @Exported
     public Long pluginVersion;
 
@@ -292,18 +296,20 @@ public class HockeyappRecorder extends Recorder {
             float fileSize = file.length();
 
             if (uploadMethod == null) {
-                //TODO: use Messages
                 listener.getLogger().println("No upload method specified!");
                 return false;
             }
-            String url = createUrl(listener, vars);
+
+            String path = createPath(listener, vars);
+            URL host = createHostUrl(listener, vars);
+            URL url = new URL(host, path);
             if (url == null) {
                 return false;
             }
 
             HttpClient httpclient = createPreconfiguredHttpClient();
 
-            HttpPost httpPost = new HttpPost(url);
+            HttpPost httpPost = new HttpPost(url.toURI());
 
 
             FileBody fileBody = new FileBody(file);
@@ -374,7 +380,6 @@ public class HockeyappRecorder extends Recorder {
             configureAction.urlName = (String) parsedMap.get("config_url");
             build.addAction(configureAction);
 
-            //TODO
             String appId;
             if (numberOldVersions != null) {
                 if (uploadMethod instanceof VersionCreation) {
@@ -398,7 +403,7 @@ public class HockeyappRecorder extends Recorder {
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
                     return false;
                 }
-                cleanupOldVersions(listener, vars, appId);
+                cleanupOldVersions(listener, vars, appId, host);
             }
         } catch (Exception e) {
             e.printStackTrace(listener.getLogger());
@@ -418,14 +423,31 @@ public class HockeyappRecorder extends Recorder {
         return true;
     }
 
+    private String createPath(BuildListener listener, EnvVars vars) {
+        String path;
+        if (uploadMethod instanceof VersionCreation) {
+            VersionCreation versionCreation = (VersionCreation) uploadMethod;
+            if (versionCreation.getAppId() != null) {
+                path = "/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions";
+            } else {
+                listener.getLogger().println("No AppId specified!");
+                path = null;
+            }
+        } else {
+            path = "/api/2/apps/upload";
+        }
+        return path;
+    }
+
     private String getAppIdFromResponseBody(String responseBody) {
 
         return null;
     }
 
     private void createReleaseNotes(AbstractBuild<?, ?> build, MultipartEntity entity, BuildListener listener, File tempDir, EnvVars vars) throws IOException, InterruptedException {
-
-        if (releaseNotesMethod instanceof ManualReleaseNotes) {
+        if (releaseNotesMethod instanceof NoReleaseNotes) {
+            return;
+        } else if (releaseNotesMethod instanceof ManualReleaseNotes) {
             ManualReleaseNotes manualReleaseNotes = (ManualReleaseNotes) releaseNotesMethod;
             if (manualReleaseNotes.getReleaseNotes() != null) {
                 entity.addPart("notes", new StringBody(vars.expand(manualReleaseNotes.getReleaseNotes()), UTF8_CHARSET));
@@ -459,21 +481,16 @@ public class HockeyappRecorder extends Recorder {
 
     }
 
-    private String createUrl(BuildListener listener, EnvVars vars) {
-        String url;
-        if (uploadMethod instanceof VersionCreation) {
-            VersionCreation versionCreation = (VersionCreation) uploadMethod;
-            if (versionCreation.getAppId() != null) {
-                url = "https://rink.hockeyapp.net/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions";
-            } else {
-                //TODO: use Messages
-                listener.getLogger().println("No AppId specified!");
-                url = null;
-            }
+    private URL createHostUrl(BuildListener listener, EnvVars vars) throws MalformedURLException {
+
+
+        URL host;
+        if (baseUrl != null) {
+            host = new URL(vars.expand(baseUrl));
         } else {
-            url = "https://rink.hockeyapp.net/api/2/apps/upload";
+            host = new URL(DEFAULT_HOCKEY_URL);
         }
-        return url;
+        return host;
     }
 
     private void printUploadSpeed(long duration, float fileSize, BuildListener listener) {
@@ -548,13 +565,11 @@ public class HockeyappRecorder extends Recorder {
         return actions;
     }
 
-    private boolean cleanupOldVersions(BuildListener listener, EnvVars vars, String appId) {
+    private boolean cleanupOldVersions(BuildListener listener, EnvVars vars, String appId, URL host) {
         try {
             HttpClient httpclient = createPreconfiguredHttpClient();
-            HttpPost httpPost = new HttpPost(
-                    "https://rink.hockeyapp.net/api/2/apps/" + vars.expand(appId)
-                            + "/app_versions/delete"
-            );
+            String path = "/api/2/apps/" + vars.expand(appId)+ "/app_versions/delete";
+            HttpPost httpPost = new HttpPost(new URL(host, path).toURI());
             httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken()));
             List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
             nameValuePairs.add(new BasicNameValuePair("keep", numberOldVersions));
@@ -684,20 +699,20 @@ public class HockeyappRecorder extends Recorder {
         public List<RadioButtonSupportDescriptor> getReleaseNotesMethodList() {
             LOGGER.info("Called 'getReleaseNotesMethodList'");
             List<RadioButtonSupportDescriptor> uploadMethods = new ArrayList<RadioButtonSupportDescriptor>(3);
+            uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(NoReleaseNotes.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(ChangelogReleaseNotes.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(FileReleaseNotes.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(ManualReleaseNotes.class));
             return uploadMethods;
         }
 
-        //TODO: check default API-Token
         @SuppressWarnings("unused")
         public FormValidation doCheckApiToken(@QueryParameter String value) throws IOException, ServletException {
             if(value.isEmpty()) {
                 if (defaultToken != null && defaultToken.length() > 0) {
-                    return FormValidation.warning("Default API Token is used!");
+                    return FormValidation.warning("Default API Token is used.");
                 } else {
-                    return FormValidation.error("You must enter an API Token!");
+                    return FormValidation.errorWithMarkup("You must enter an <a href=\"https://rink.hockeyapp.net/manage/auth_tokens\">API Token</a>.");
                 }
             } else {
                 return FormValidation.ok();
@@ -708,7 +723,7 @@ public class HockeyappRecorder extends Recorder {
         @SuppressWarnings("unused")
         public FormValidation doCheckBaseUrl(@QueryParameter String value) throws IOException, ServletException {
             if(value.isEmpty()) {
-                return FormValidation.error("You must enter a URL!");
+                return FormValidation.error("You must enter a URL.");
             } else {
                 return FormValidation.ok();
             }
@@ -718,17 +733,17 @@ public class HockeyappRecorder extends Recorder {
         @SuppressWarnings("unused")
         public FormValidation doCheckNumberOldVersions(@QueryParameter String value) throws IOException, ServletException {
             if(value.isEmpty()) {
-                return FormValidation.error("You must specify a positive Number!");
+                return FormValidation.error("You must specify a positive Number.");
             } else {
                 try {
                     int number = Integer.parseInt(value);
                     if (number > 0) {
                         return FormValidation.ok();
                     } else {
-                        return FormValidation.error("You must specify a positive Number!");
+                        return FormValidation.error("You must specify a positive Number.");
                     }
                 } catch (NumberFormatException e) {
-                    return FormValidation.error("You must specify a positive Number!");
+                    return FormValidation.error("You must specify a positive Number.");
                 }
 
             }
@@ -736,9 +751,18 @@ public class HockeyappRecorder extends Recorder {
         }
 
         @SuppressWarnings("unused")
-        public FormValidation doCheckDebugMode(String value) {
+        public FormValidation doCheckDebugMode(@QueryParameter String value) {
             if (globalDebugMode) {
-                return FormValidation.warning("Debug Mode is enabled globally!");
+                return FormValidation.warning("Debug Mode is enabled globally.");
+            } else {
+                return FormValidation.ok();
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckFilePath(@QueryParameter String value) {
+            if (value.isEmpty()) {
+                return FormValidation.error("You must enter a File Path.");
             } else {
                 return FormValidation.ok();
             }
