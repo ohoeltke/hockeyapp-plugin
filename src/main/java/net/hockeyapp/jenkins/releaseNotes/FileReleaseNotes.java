@@ -13,9 +13,6 @@ import org.kohsuke.stapler.export.Exported;
 import javax.servlet.ServletException;
 import java.io.IOException;
 
-/**
- * Created by ungerts on 03.04.14.
- */
 public class FileReleaseNotes extends RadioButtonSupport {
 
     @Exported

@@ -12,14 +12,8 @@ import org.kohsuke.stapler.export.Exported;
 
 import javax.servlet.ServletException;
 import java.io.IOException;
-import java.util.logging.Logger;
 
-/**
- * Created by ungerts on 03.04.14.
- */
 public class VersionCreation extends RadioButtonSupport {
-
-    private static final Logger logger = Logger.getLogger(VersionCreation.class.getName());
 
     @Exported
     private String appId;
@@ -30,7 +24,6 @@ public class VersionCreation extends RadioButtonSupport {
     }
 
     public String getAppId() {
-        logger.info("Called 'getAppId'");
         return appId;
     }
 
@@ -43,7 +36,6 @@ public class VersionCreation extends RadioButtonSupport {
 
         public DescriptorImpl() {
             super();
-            logger.info("Called 'DescriptorImpl'");
             load();
         }
 

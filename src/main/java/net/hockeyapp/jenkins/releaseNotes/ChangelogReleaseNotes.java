@@ -9,9 +9,6 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
-/**
- * Created by ungerts on 03.04.14.
- */
 public class ChangelogReleaseNotes extends RadioButtonSupport {
 
     @DataBoundConstructor

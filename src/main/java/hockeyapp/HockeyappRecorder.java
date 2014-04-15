@@ -49,7 +49,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.logging.Logger;
+
 
 
 public class HockeyappRecorder extends Recorder {
@@ -101,8 +101,6 @@ public class HockeyappRecorder extends Recorder {
     RadioButtonSupport releaseNotesMethod;
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
-
-    private static Logger LOGGER = Logger.getLogger(HockeyappRecorder.class.getName());
 
     @DataBoundConstructor
     public HockeyappRecorder(String apiToken, boolean notifyTeam,
@@ -198,7 +196,6 @@ public class HockeyappRecorder extends Recorder {
 //    }
 
     public RadioButtonSupport getUploadMethod() {
-        LOGGER.info("Called method 'getUploadMethod'");
         return uploadMethod;
     }
 
@@ -207,12 +204,8 @@ public class HockeyappRecorder extends Recorder {
     }
 
     public Object readResolve() {
-        LOGGER.info("ReadResolve: " + this.getDescriptor().clazz.getName());
         if (this.pluginVersion == null || this.pluginVersion < PLUGIN_VERSION_NUMBER) {
-            LOGGER.info("Update Hockey Plugin Configuration");
             if (useChangelog) {
-
-
                 if (buildNotes != null) {
                     //  entity.addPart("notes", new StringBody(vars.expand(buildNotes), UTF8_CHARSET));
                     //  entity.addPart("notes_type", new StringBody(useNotesTypeMarkdown ? "1" : "0"));
@@ -301,7 +294,7 @@ public class HockeyappRecorder extends Recorder {
             }
 
             String path = createPath(listener, vars);
-            URL host = createHostUrl(listener, vars);
+            URL host = createHostUrl(vars);
             URL url = new URL(host, path);
             if (url == null) {
                 return false;
@@ -439,11 +432,6 @@ public class HockeyappRecorder extends Recorder {
         return path;
     }
 
-    private String getAppIdFromResponseBody(String responseBody) {
-
-        return null;
-    }
-
     private void createReleaseNotes(AbstractBuild<?, ?> build, MultipartEntity entity, BuildListener listener, File tempDir, EnvVars vars) throws IOException, InterruptedException {
         if (releaseNotesMethod instanceof NoReleaseNotes) {
             return;
@@ -481,9 +469,7 @@ public class HockeyappRecorder extends Recorder {
 
     }
 
-    private URL createHostUrl(BuildListener listener, EnvVars vars) throws MalformedURLException {
-
-
+    private URL createHostUrl(EnvVars vars) throws MalformedURLException {
         URL host;
         if (baseUrl != null) {
             host = new URL(vars.expand(baseUrl));
@@ -687,17 +673,13 @@ public class HockeyappRecorder extends Recorder {
         }
 
         public List<RadioButtonSupportDescriptor> getUploadMethodList() {
-            LOGGER.info("Called 'getUploadMethodList'");
             List<RadioButtonSupportDescriptor> uploadMethods = new ArrayList<RadioButtonSupportDescriptor>(2);
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(AppCreation.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(VersionCreation.class));
-            LOGGER.info("Display name: " + (Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(VersionCreation.class)).getDisplayName());
-            LOGGER.info("Display name: " + (Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(AppCreation.class)).getDisplayName());
             return uploadMethods;
         }
 
         public List<RadioButtonSupportDescriptor> getReleaseNotesMethodList() {
-            LOGGER.info("Called 'getReleaseNotesMethodList'");
             List<RadioButtonSupportDescriptor> uploadMethods = new ArrayList<RadioButtonSupportDescriptor>(3);
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(NoReleaseNotes.class));
             uploadMethods.add(Jenkins.getInstance() == null ? null : (RadioButtonSupportDescriptor) Jenkins.getInstance().getDescriptorOrDie(ChangelogReleaseNotes.class));

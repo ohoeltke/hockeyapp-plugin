@@ -9,14 +9,8 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
-import java.util.logging.Logger;
 
-/**
- * Created by ungerts on 03.04.14.
- */
 public class AppCreation extends RadioButtonSupport {
-
-    private static final Logger logger = Logger.getLogger(AppCreation.class.getName());
 
     @DataBoundConstructor
     public AppCreation() {
@@ -32,7 +26,6 @@ public class AppCreation extends RadioButtonSupport {
 
         public DescriptorImpl() {
             super();
-            logger.info("Called 'DescriptorImpl'");
             load();
         }
 
