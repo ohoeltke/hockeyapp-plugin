@@ -7,15 +7,21 @@ import hudson.Launcher;
 import hudson.Util;
 import hudson.model.*;
 import hudson.model.AbstractBuild;
+import hudson.ProxyConfiguration;
 import hudson.tasks.*;
 import hudson.util.RunList;
 import org.apache.commons.collections.Predicate;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
@@ -110,9 +116,25 @@ public class HockeyappRecorder extends Recorder {
 	// note that this doesn't solve potential write timeouts
 	// http://stackoverflow.com/questions/1338885/java-socket-output-stream-writes-do-they-block
 	private HttpClient createPreconfiguredHttpClient() {
-		HttpClient httpclient = new DefaultHttpClient();
+		DefaultHttpClient httpclient = new DefaultHttpClient();
 		httpclient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 60000);
 		httpclient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 60000);
+
+		// Proxy setting
+		if (Hudson.getInstance() != null && Hudson.getInstance().proxy != null) {
+
+			ProxyConfiguration configuration = Hudson.getInstance().proxy;
+			Credentials cred = null;
+
+			if (configuration.getUserName() != null && !configuration.getUserName().isEmpty()) {
+				cred = new UsernamePasswordCredentials(configuration.getUserName(), configuration.getPassword());
+			}
+
+			httpclient.getCredentialsProvider().setCredentials(new AuthScope(configuration.name, configuration.port), cred);
+			HttpHost proxy = new HttpHost(configuration.name, configuration.port);
+			httpclient.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
+		}
+
 		return httpclient;
 	}
 
