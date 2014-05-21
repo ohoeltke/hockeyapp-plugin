@@ -32,6 +32,9 @@
     <f:entry title="${%Symbols} (${%.dSYM.zip or mapping.txt})" field="dsymPath">
         <f:textbox/>
     </f:entry>
+    <f:entry title="${%Packed libraries} (${%.zip})" field="libsPath">
+        <f:textbox />
+    </f:entry>
     <f:entry title="${%Release Notes}">
         <table width="100%">
             <f:invisibleEntry>
