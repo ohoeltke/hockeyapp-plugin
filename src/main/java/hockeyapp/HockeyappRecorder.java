@@ -1,12 +1,14 @@
 package hockeyapp;
 
-import hudson.*;
+import hudson.EnvVars;
+import hudson.Extension;
+import hudson.FilePath;
+import hudson.Launcher;
+import hudson.Util;
 import hudson.model.*;
-import hudson.scm.ChangeLogSet.Entry;
-import hudson.tasks.BuildStepDescriptor;
-import hudson.tasks.BuildStepMonitor;
-import hudson.tasks.Publisher;
-import hudson.tasks.Recorder;
+import hudson.model.AbstractBuild;
+import hudson.ProxyConfiguration;
+import hudson.tasks.*;
 import hudson.util.FormValidation;
 import hudson.util.RunList;
 import jenkins.model.Jenkins;
@@ -18,38 +20,47 @@ import net.hockeyapp.jenkins.releaseNotes.ManualReleaseNotes;
 import net.hockeyapp.jenkins.releaseNotes.NoReleaseNotes;
 import net.hockeyapp.jenkins.uploadMethod.AppCreation;
 import net.hockeyapp.jenkins.uploadMethod.VersionCreation;
-import net.sf.json.JSONObject;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.Predicate;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.HttpClient;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+//import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.client.HttpClient;
 import org.apache.http.params.CoreConnectionPNames;
 import org.apache.tools.ant.types.FileSet;
 import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.export.Exported;
-
-import javax.servlet.ServletException;
+import hudson.scm.ChangeLogSet.Entry;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
 
+import net.sf.json.JSONObject;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.export.Exported;
+
+import javax.servlet.ServletException;
 
 
 public class HockeyappRecorder extends Recorder {
@@ -258,9 +269,28 @@ public class HockeyappRecorder extends Recorder {
     // note that this doesn't solve potential write timeouts
     // http://stackoverflow.com/questions/1338885/java-socket-output-stream-writes-do-they-block
     private HttpClient createPreconfiguredHttpClient() {
-        HttpClient httpclient = new DefaultHttpClient();
+        DefaultHttpClient httpclient = new DefaultHttpClient();
         httpclient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 60000);
         httpclient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 60000);
+
+        // Proxy setting
+        if (Hudson.getInstance() != null && Hudson.getInstance().proxy != null) {
+
+            ProxyConfiguration configuration = Hudson.getInstance().proxy;
+            Credentials cred = null;
+
+            if (configuration.getUserName() != null && !configuration.getUserName().isEmpty()) {
+                cred = new UsernamePasswordCredentials(configuration.getUserName(), configuration.getPassword());
+            }
+
+            CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(new AuthScope(configuration.name, configuration.port), cred);
+
+            httpclient.getCredentialsProvider().setCredentials(new AuthScope(configuration.name, configuration.port), cred);
+            HttpHost proxy = new HttpHost(configuration.name, configuration.port);
+            httpclient.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
+        }
+
         return httpclient;
     }
 
