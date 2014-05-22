@@ -42,6 +42,8 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.params.CoreConnectionPNames;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
 import org.apache.tools.ant.types.FileSet;
 import org.json.simple.parser.JSONParser;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -270,9 +272,9 @@ public class HockeyappRecorder extends Recorder {
     // http://stackoverflow.com/questions/1338885/java-socket-output-stream-writes-do-they-block
     private HttpClient createPreconfiguredHttpClient() {
         DefaultHttpClient httpclient = new DefaultHttpClient();
-        httpclient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 60000);
-        httpclient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 60000);
-
+        HttpParams params = httpclient.getParams();
+        HttpConnectionParams.setConnectionTimeout(params, 60000);
+        HttpConnectionParams.setSoTimeout(params, 60000);
         // Proxy setting
         if (Hudson.getInstance() != null && Hudson.getInstance().proxy != null) {
 
