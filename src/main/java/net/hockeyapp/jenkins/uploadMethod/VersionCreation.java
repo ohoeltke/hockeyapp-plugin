@@ -1,6 +1,7 @@
 package net.hockeyapp.jenkins.uploadMethod;
 
 import hudson.Extension;
+import hudson.Util;
 import hudson.model.Descriptor;
 import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
@@ -20,7 +21,7 @@ public class VersionCreation extends RadioButtonSupport {
 
     @DataBoundConstructor
     public VersionCreation(String appId) {
-        this.appId = appId;
+        this.appId = Util.fixEmptyAndTrim(appId);
     }
 
     public String getAppId() {

@@ -1,6 +1,7 @@
 package net.hockeyapp.jenkins.releaseNotes;
 
 import hudson.Extension;
+import hudson.Util;
 import hudson.model.Descriptor;
 import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
@@ -23,7 +24,7 @@ public class FileReleaseNotes extends RadioButtonSupport {
 
     @DataBoundConstructor
     public FileReleaseNotes(String fileName, boolean isMarkdown) {
-        this.fileName = fileName;
+        this.fileName = Util.fixEmptyAndTrim(fileName);
         this.isMarkdown = isMarkdown;
     }
 
