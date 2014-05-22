@@ -95,6 +95,9 @@
             <f:checkbox
                     checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkDebugMode?value='+escape(this.value)"/>
         </f:entry>
+        <f:entry title="Fail gracefully" field="failGracefully">
+            <f:checkbox />
+        </f:entry>
         <!--f:entry title="${%Use Markdown for Release notes}" field="useNotesTypeMarkdown">
             <f:checkbox />
         </f:entry>

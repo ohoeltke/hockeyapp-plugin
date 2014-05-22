@@ -68,8 +68,8 @@ import javax.servlet.ServletException;
 public class HockeyappRecorder extends Recorder {
 
     public static final Long PLUGIN_VERSION_NUMBER = 1L;
-    private static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
-
+    public static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
+    public static final int DEFAULT_TIMEOUT = 60000;
 
 
     @Exported
@@ -111,7 +111,10 @@ public class HockeyappRecorder extends Recorder {
     public String baseUrl;
 
     @Exported
-    RadioButtonSupport releaseNotesMethod;
+    public RadioButtonSupport releaseNotesMethod;
+
+    @Exported
+    public boolean failGracefully;
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
@@ -121,7 +124,7 @@ public class HockeyappRecorder extends Recorder {
                              boolean downloadAllowed,
                              OldVersionHolder oldVersionHolder, boolean debugMode,
                              RadioButtonSupport uploadMethod, RadioButtonSupport releaseNotesMethod,
-                             BaseUrlHolder baseUrlHolder) {
+                             BaseUrlHolder baseUrlHolder, boolean failGracefully) {
 
         this.apiToken = Util.fixEmptyAndTrim(apiToken);
 
@@ -146,6 +149,8 @@ public class HockeyappRecorder extends Recorder {
         if (oldVersionHolder != null) {
             this.numberOldVersions = Util.fixEmptyAndTrim(oldVersionHolder.numberOldVersions);
         }
+
+        this.failGracefully = failGracefully;
     }
 
     @Deprecated
@@ -273,8 +278,8 @@ public class HockeyappRecorder extends Recorder {
     private HttpClient createPreconfiguredHttpClient() {
         DefaultHttpClient httpclient = new DefaultHttpClient();
         HttpParams params = httpclient.getParams();
-        HttpConnectionParams.setConnectionTimeout(params, 60000);
-        HttpConnectionParams.setSoTimeout(params, 60000);
+        HttpConnectionParams.setConnectionTimeout(params, this.getDescriptor().getTimeoutInt());
+        HttpConnectionParams.setSoTimeout(params, this.getDescriptor().getTimeoutInt());
         // Proxy setting
         if (Hudson.getInstance() != null && Hudson.getInstance().proxy != null) {
 
@@ -299,8 +304,7 @@ public class HockeyappRecorder extends Recorder {
     @Override
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
                            BuildListener listener) {
-        if (build.getResult().isWorseOrEqualTo(Result.FAILURE))
-            return false;
+        if (build.getResult().isWorseOrEqualTo(Result.FAILURE)) return false;
 
         listener.getLogger().println(Messages.UPLOADING_TO_HOCKEYAPP());
         File tempDir = null;
@@ -323,14 +327,14 @@ public class HockeyappRecorder extends Recorder {
 
             if (uploadMethod == null) {
                 listener.getLogger().println("No upload method specified!");
-                return false;
+                return this.failGracefully;
             }
 
             String path = createPath(listener, vars);
             URL host = createHostUrl(vars);
             URL url = new URL(host, path);
             if (url == null) {
-                return false;
+                return this.failGracefully;
             }
 
             HttpClient httpclient = createPreconfiguredHttpClient();
@@ -384,7 +388,7 @@ public class HockeyappRecorder extends Recorder {
                 listener.getLogger().println(
                         Messages.UNEXPECTED_RESPONSE_CODE(response.getStatusLine().getStatusCode()));
                 listener.getLogger().println(responseBody);
-                return false;
+                return this.failGracefully;
             } else if (isDebugEnabled()) { // DEBUG MODE output
                 listener.getLogger().println("RESPONSE: " + responseBody);
             }
@@ -418,23 +422,23 @@ public class HockeyappRecorder extends Recorder {
                 if (appId == null) {
                     listener.getLogger().println(Messages.APP_ID_MISSING_FOR_CLEANUP());
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
-                    return false;
+                    return this.failGracefully;
                 }
                 if (numberOldVersions == null || !StringUtils.isNumeric(numberOldVersions)) {
                     listener.getLogger().println(Messages.COUNT_MISSING_FOR_CLEANUP());
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
-                    return false;
+                    return this.failGracefully;
                 }
                 if (Integer.parseInt(numberOldVersions) < 1) {
                     listener.getLogger().println(Messages.TOO_FEW_VERSIONS_RETAINED());
                     listener.getLogger().println(Messages.ABORTING_CLEANUP());
-                    return false;
+                    return this.failGracefully;
                 }
                 cleanupOldVersions(listener, vars, appId, host);
             }
         } catch (Exception e) {
             e.printStackTrace(listener.getLogger());
-            return false;
+            return this.failGracefully;
         } finally {
             try {
                 FileUtils.deleteDirectory(tempDir);
@@ -666,7 +670,7 @@ public class HockeyappRecorder extends Recorder {
 
         @SuppressWarnings("unused") // Used by Jenkins
         public void setDefaultToken(String defaultToken) {
-            this.defaultToken = defaultToken;
+            this.defaultToken = Util.fixEmptyAndTrim(defaultToken);
             save();
         }
 
@@ -682,7 +686,33 @@ public class HockeyappRecorder extends Recorder {
         }
 
         private String defaultToken;
+
         private boolean globalDebugMode = false;
+
+        private String timeout;
+
+        @SuppressWarnings("unused")
+        public String getTimeout() {
+            return timeout;
+        }
+
+        public int getTimeoutInt() {
+            if (this.timeout != null) {
+                try {
+                    return Integer.parseInt(this.timeout) * 1000;
+                } catch (Exception e) {
+                    return HockeyappRecorder.DEFAULT_TIMEOUT;
+                }
+            } else {
+                return HockeyappRecorder.DEFAULT_TIMEOUT;
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public void setTimeout(String timeout) {
+            this.timeout = Util.fixEmptyAndTrim(timeout);
+            save();
+        }
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project
