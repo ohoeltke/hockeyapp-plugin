@@ -316,11 +316,9 @@ public class HockeyappRecorder extends Recorder {
             tempDir.delete();
             tempDir.mkdirs();
 
-            String expandedFilePath = vars.expand(filePath);
-            build.getWorkspace().copyRecursiveTo(expandedFilePath, null, new FilePath(tempDir));
-            FileSet fileSet = Util.createFileSet(tempDir, expandedFilePath, null);
-            // Take the first one that matches the pattern
-            File file = new File(fileSet.iterator().next().toString());
+            FilePath remoteWorkspace = new FilePath(launcher.getChannel(), build.getWorkspace().getRemote());
+            FilePath[] remoteFiles = remoteWorkspace.list(vars.expand(filePath));
+            File file = getFileLocally(remoteWorkspace,remoteFiles[0].getName(),tempDir);
             listener.getLogger().println(file);
 
             float fileSize = file.length();
@@ -355,11 +353,9 @@ public class HockeyappRecorder extends Recorder {
             entity.addPart("ipa", fileBody);
 
             if (dsymPath != null) {
-                String dsymFilePath = vars.expand(dsymPath);
-                build.getWorkspace().copyRecursiveTo(dsymFilePath, null, new FilePath(tempDir));
-                FileSet dsymFileSet = Util.createFileSet(tempDir, dsymFilePath, null);
+                FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(dsymPath));
                 // Take the first one that matches the pattern
-                File dsymFile = new File(dsymFileSet.iterator().next().toString());
+                File dsymFile = getFileLocally(remoteWorkspace,remoteDsymFiles[0].getName(),tempDir);
                 listener.getLogger().println(dsymFile);
                 FileBody dsymFileBody = new FileBody(dsymFile);
                 entity.addPart("dsym", dsymFileBody);
