@@ -3,7 +3,7 @@
          <f:entry title="${%Default API Token}" field="defaultToken">
              <f:textbox/>
          </f:entry>
-         <f:entry title="HTTP Client Timeout" field="timeout">
+         <f:entry title="${%HTTP Client Timeout}" field="timeout">
              <f:textbox/>
          </f:entry>
          <f:entry title="${%Enable global Debug Mode}" field="globalDebugMode">

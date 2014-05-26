@@ -4,7 +4,7 @@
     <f:entry title="${%API Token}" field="apiToken">
         <f:textbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkApiToken?value='+escape(this.value)"/>
     </f:entry>
-    <f:entry title="Upload Method">
+    <f:entry title="${%Upload Method}">
         <table width="100%">
             <f:invisibleEntry>
                 <input type="hidden" name="id" value="${descriptor.getId(instance)}"/>
@@ -32,7 +32,7 @@
     <f:entry title="${%Symbols} (${%.dSYM.zip or mapping.txt})" field="dsymPath">
         <f:textbox/>
     </f:entry>
-    <f:entry title="Release Notes">
+    <f:entry title="${%Release Notes}">
         <table width="100%">
             <f:invisibleEntry>
                 <input type="hidden" name="id" value="${descriptor.getId(instance)}"/>
@@ -65,7 +65,7 @@
     <f:advanced>
         <f:block>
             <table width="100%">
-                <f:optionalBlock name="oldVersionHolder" title="Delete old Versions"
+                <f:optionalBlock name="oldVersionHolder" title="${%Delete old Versions}"
                                  checked="${instance.baseUrl != numberOldVersions}">
                     <f:entry title="${%Number of old Versions to keep}" field="numberOldVersions">
                         <f:textbox
@@ -80,9 +80,9 @@
 
         <f:block>
             <table width="100%">
-                <f:optionalBlock name="baseUrlHolder" title="Custom HockeyApp API URL"
+                <f:optionalBlock name="baseUrlHolder" title="${%Custom HockeyApp API URL}"
                                  checked="${instance.baseUrl != null}">
-                    <f:entry title="URL" field="baseUrl">
+                    <f:entry title="${%URL}" field="baseUrl">
                         <f:textbox
                                 checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkBaseUrl?value='+escape(this.value)"/>
                     </f:entry>
@@ -95,7 +95,7 @@
             <f:checkbox
                     checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkDebugMode?value='+escape(this.value)"/>
         </f:entry>
-        <f:entry title="Fail gracefully" field="failGracefully">
+        <f:entry title="${%Fail gracefully}" field="failGracefully">
             <f:checkbox />
         </f:entry>
         <!--f:entry title="${%Use Markdown for Release notes}" field="useNotesTypeMarkdown">
