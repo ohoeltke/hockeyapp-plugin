@@ -318,7 +318,7 @@ public class HockeyappRecorder extends Recorder {
 
             FilePath remoteWorkspace = new FilePath(launcher.getChannel(), build.getWorkspace().getRemote());
             FilePath[] remoteFiles = remoteWorkspace.list(vars.expand(filePath));
-            File file = getFileLocally(remoteWorkspace,remoteFiles[0].getName(),tempDir);
+            File file = getLocalFileFromFilePath(remoteFiles[0], tempDir);
             listener.getLogger().println(file);
 
             float fileSize = file.length();
@@ -355,7 +355,7 @@ public class HockeyappRecorder extends Recorder {
             if (dsymPath != null) {
                 FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(dsymPath));
                 // Take the first one that matches the pattern
-                File dsymFile = getFileLocally(remoteWorkspace,remoteDsymFiles[0].getName(),tempDir);
+                File dsymFile = getLocalFileFromFilePath(remoteDsymFiles[0], tempDir);
                 listener.getLogger().println(dsymFile);
                 FileBody dsymFileBody = new FileBody(dsymFile);
                 entity.addPart("dsym", dsymFileBody);
@@ -549,6 +549,16 @@ public class HockeyappRecorder extends Recorder {
         }
 
         return new File(workingDir.getRemote(), strFile);
+    }
+
+    private static File getLocalFileFromFilePath(FilePath filePath, File tempDir) throws IOException, InterruptedException {
+        if(filePath.isRemote()) {
+            FilePath localFilePath = new FilePath(new FilePath(tempDir), filePath.getName());
+            filePath.copyTo(localFilePath);
+            return new File(localFilePath.toURI());
+        } else {
+            return new File(filePath.toURI());
+        }
     }
 
     @Override
