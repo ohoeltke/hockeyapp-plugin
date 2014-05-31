@@ -1,85 +1,18 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
          xmlns:f="/lib/form">
 
-    <f:entry title="${%API Token}" field="apiToken">
-        <f:textbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkApiToken?value='+escape(this.value)"/>
-    </f:entry>
-    <f:entry title="${%Upload Method}">
-        <table width="100%">
-            <f:invisibleEntry>
-                <input type="hidden" name="id" value="${descriptor.getId(instance)}"/>
-            </f:invisibleEntry>
-            <j:set var="methods" value="${descriptor.getUploadMethodList()}"/>
-            <j:forEach var="method" items="${methods}" varStatus="loop">
-                <f:radioBlock name="uploadMethod" value="${loop.index}" title="${method.getDisplayName()}"
-                              checked="${(instance == null &amp;&amp; loop.index == 0) || instance.getUploadMethod().descriptor==method}">
-                    <f:invisibleEntry>
-                        <input type="hidden" name="stapler-class" value="${method.clazz.name}"/>
-                    </f:invisibleEntry>
-                    <j:set var="instance"
-                           value="${instance.getUploadMethod().descriptor==method ? instance.getUploadMethod() : null}"/>
-                    <j:set var="descriptor" value="${method}"/>
-                    <st:include from="${descriptor}" page="${descriptor.configPage}" optional="true"/>
-                </f:radioBlock>
-            </j:forEach>
-        </table>
-    </f:entry>
-
-
-    <f:entry title="${%App File} (${%.ipa, .app.zip, .apk})" field="filePath">
-        <f:textbox checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkFilePath?value='+escape(this.value)"/>
-    </f:entry>
-    <f:entry title="${%Symbols} (${%.dSYM.zip or mapping.txt})" field="dsymPath">
-        <f:textbox/>
-    </f:entry>
-    <f:entry title="${%Packed libraries} (${%.zip})" field="libsPath">
-        <f:textbox />
-    </f:entry>
-    <f:entry title="${%Release Notes}">
-        <table width="100%">
-            <f:invisibleEntry>
-                <input type="hidden" name="id" value="${descriptor.getId(instance)}"/>
-            </f:invisibleEntry>
-            <j:set var="methods" value="${descriptor.getReleaseNotesMethodList()}"/>
-            <j:forEach var="method" items="${methods}" varStatus="loop">
-                <f:radioBlock name="releaseNotesMethod" value="${loop.index}" title="${method.getDisplayName()}"
-                              checked="${(instance == null &amp;&amp; loop.index == 0) || instance.getReleaseNotesMethod().descriptor==method}">
-                    <f:invisibleEntry>
-                        <input type="hidden" name="stapler-class" value="${method.clazz.name}"/>
-                    </f:invisibleEntry>
-                    <j:set var="instance"
-                           value="${instance.getReleaseNotesMethod().descriptor==method ? instance.getReleaseNotesMethod() : null}"/>
-                    <j:set var="descriptor" value="${method}"/>
-                    <st:include from="${descriptor}" page="${descriptor.configPage}" optional="true"/>
-                </f:radioBlock>
-            </j:forEach>
-        </table>
-    </f:entry>
-    <f:entry title="${%Allow Downloads}" field="downloadAllowed">
-        <f:checkbox/>
-    </f:entry>
-    <f:entry title="${%Restrict Downloads to Tags}" field="tags">
-        <f:textbox/>
-    </f:entry>
-    <f:entry title="${%Notify Team}" field="notifyTeam">
-        <f:checkbox/>
+    <f:entry title="${%Applications}" field="applications">
+        <f:repeatableProperty field="applications" noAddButton="true" minimum="1"/>
     </f:entry>
 
     <f:advanced>
-        <f:block>
-            <table width="100%">
-                <f:optionalBlock name="oldVersionHolder" title="${%Delete old Versions}"
-                                 checked="${instance.baseUrl != numberOldVersions}">
-                    <f:entry title="${%Number of old Versions to keep}" field="numberOldVersions">
-                        <f:textbox
-                                checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkNumberOldVersions?value='+escape(this.value)"/>
-                    </f:entry>
-                </f:optionalBlock>
-            </table>
-        </f:block>
-        <!--f:entry title="${%Clean up old versions at HockeyApp}" field="cleanupOld">
-            <f:checkbox />
-        </f:entry-->
+        <f:entry title="${%Enable Debug Mode}" field="debugMode">
+            <f:checkbox
+                    checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkDebugMode?value='+escape(this.value)"/>
+        </f:entry>
+        <f:entry title="${%Fail gracefully}" field="failGracefully">
+            <f:checkbox/>
+        </f:entry>
 
         <f:block>
             <table width="100%">
@@ -92,37 +25,5 @@
                 </f:optionalBlock>
             </table>
         </f:block>
-
-
-        <f:entry title="${%Enable Debug Mode}" field="debugMode">
-            <f:checkbox
-                    checkUrl="'descriptorByName/hockeyapp.HockeyappRecorder/checkDebugMode?value='+escape(this.value)"/>
-        </f:entry>
-        <f:entry title="${%Fail gracefully}" field="failGracefully">
-            <f:checkbox />
-        </f:entry>
-        <!--f:entry title="${%Use Markdown for Release notes}" field="useNotesTypeMarkdown">
-            <f:checkbox />
-        </f:entry>
-        <f:entry title="${%Use changelog as release notes}" field="useChangelog">
-            <f:checkbox />
-        </f:entry>
-        <f:entry title="${%Release notes filename}" field="releaseNotesFileName">
-            <f:textbox />
-        </f:entry>
-
-
-
-
-        <f:entry title="${%Use new API URL}" field="useAppVersionURL">
-            <f:checkbox />
-        </f:entry>
-          <f:entry title="${%Public ID / App ID}" field="appId">
-              <f:textbox />
-          </f:entry>
-          <f:entry title="${%Release notes}" field="buildNotes">
-              <f:textarea />
-          </f:entry-->
     </f:advanced>
-
 </j:jelly>
