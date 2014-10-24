@@ -256,17 +256,38 @@ public class HockeyappRecorder extends Recorder {
 
 
 
+            String buildId = Long.toString((Long)parsedMap.get("id"));
+
             HockeyappBuildAction installAction = new HockeyappBuildAction();
+            String installUrl = (String) parsedMap.get("public_url") +
+                "/app_versions/" + buildId;
             installAction.displayName = Messages.HOCKEYAPP_INSTALL_LINK();
             installAction.iconFileName = "package.gif";
-            installAction.urlName = (String) parsedMap.get("public_url");
+            installAction.urlName = installUrl;
             build.addAction(installAction);
 
             HockeyappBuildAction configureAction = new HockeyappBuildAction();
+            String configUrl = (String) parsedMap.get("config_url");
             configureAction.displayName = Messages.HOCKEYAPP_CONFIG_LINK();
             configureAction.iconFileName = "gear2.gif";
-            configureAction.urlName = (String) parsedMap.get("config_url");
+            configureAction.urlName = configUrl;
             build.addAction(configureAction);
+
+            int appIndex = applications.indexOf(application);
+
+            EnvAction envData = new EnvAction();
+            build.addAction(envData);
+
+            if (envData != null) {
+
+                if (appIndex == 0) {
+                    envData.add("HOCKEYAPP_INSTALL_URL", installUrl);
+                    envData.add("HOCKEYAPP_CONFIG_URL", configUrl);
+                }
+
+                envData.add("HOCKEYAPP_INSTALL_URL_" + appIndex, installUrl);
+                envData.add("HOCKEYAPP_CONFIG_URL_" + appIndex, configUrl);
+            }
 
             String appId;
             if (application.getNumberOldVersions() != null) {
@@ -619,6 +640,31 @@ public class HockeyappRecorder extends Recorder {
             return IOUtils.toString(inputStream, "UTF-8");
         } finally {
             inputStream.close();
+        }
+    }
+
+    private static class EnvAction implements EnvironmentContributingAction {
+        private transient Map<String, String> data = new HashMap<String, String>();
+
+        private void add(String key, String value) {
+            if (data == null) return;
+            data.put(key, value);
+        }
+
+        public void buildEnvVars(AbstractBuild<?, ?> build, EnvVars env) {
+            if (data != null) env.putAll(data);
+        }
+
+        public String getIconFileName() {
+            return null;
+        }
+
+        public String getDisplayName() {
+            return null;
+        }
+
+        public String getUrlName() {
+            return null;
         }
     }
 
