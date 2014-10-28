@@ -170,6 +170,10 @@ public class HockeyappRecorder extends Recorder {
 
             FilePath remoteWorkspace = new FilePath(launcher.getChannel(), build.getWorkspace().getRemote());
             FilePath[] remoteFiles = remoteWorkspace.list(vars.expand(application.filePath));
+            if (remoteFiles.length == 0) {
+                 listener.getLogger().println("No IPA/APK found to upload in: " + vars.expand(application.filePath));
+                 return this.failGracefully;
+            }
             File file = getLocalFileFromFilePath(remoteFiles[0], tempDir);
             listener.getLogger().println(file);
 
@@ -207,6 +211,10 @@ public class HockeyappRecorder extends Recorder {
             if (application.dsymPath != null) {
                 FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(application.dsymPath));
                 // Take the first one that matches the pattern
+                if (remoteDsymFiles.length == 0) {
+                     listener.getLogger().println("No dSYM found to upload in: " + vars.expand(application.dsymPath));
+                     return this.failGracefully;
+                }
                 File dsymFile = getLocalFileFromFilePath(remoteDsymFiles[0], tempDir);
                 listener.getLogger().println(dsymFile);
                 FileBody dsymFileBody = new FileBody(dsymFile);
@@ -216,6 +224,10 @@ public class HockeyappRecorder extends Recorder {
             if (application.libsPath != null) {
                 FilePath remoteLibsFiles[] = remoteWorkspace.list(vars.expand(application.libsPath));
                 // Take the first one that matches the pattern
+                if (remoteLibsFiles.length == 0) {
+                     listener.getLogger().println("No LIBS found to upload in: " + vars.expand(application.libsPath));
+                     return this.failGracefully;
+                }
                 File libsFile = getLocalFileFromFilePath(remoteLibsFiles[0], tempDir);
                 listener.getLogger().println(libsFile);
                 FileBody libsFileBody = new FileBody(libsFile);
