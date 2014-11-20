@@ -27,7 +27,7 @@
     <tag>HEAD</tag>
   </scm>
 
-  <url>http://wiki.jenkins-ci.org/display/JENKINS/Hockeyapp+Plugin</url>
+  <url>http://wiki.jenkins-ci.org/display/JENKINS/HockeyApp+Plugin</url>
   <developers>
     <developer>
       <id>ohoeltke</id>
