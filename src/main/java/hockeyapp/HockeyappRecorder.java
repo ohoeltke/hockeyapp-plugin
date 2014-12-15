@@ -207,13 +207,12 @@ public class HockeyappRecorder extends Recorder {
 
                 if (application.releaseNotesMethod != null) {
                     createReleaseNotes(build, entity, listener, tempDir, vars, application);
-
                 }
 
 
                 entity.addPart("ipa", fileBody);
 
-                if (application.dsymPath != null) {
+                if (vars.expand(application.dsymPath) != null) {
                     FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(application.dsymPath));
                     // Take the first one that matches the pattern
                     if (remoteDsymFiles.length == 0) {
@@ -226,7 +225,7 @@ public class HockeyappRecorder extends Recorder {
                     entity.addPart("dsym", dsymFileBody);
                 }
 
-                if (application.libsPath != null) {
+                if (vars.expand(application.libsPath) != null) {
                     FilePath remoteLibsFiles[] = remoteWorkspace.list(vars.expand(application.libsPath));
                     // Take the first one that matches the pattern
                     if (remoteLibsFiles.length == 0) {
@@ -239,7 +238,7 @@ public class HockeyappRecorder extends Recorder {
                     entity.addPart("libs", libsFileBody);
                 }
 
-                if (application.tags != null && application.tags.length() > 0)
+                if (vars.expand(application.tags) != null && application.tags.length() > 0)
                     entity.addPart("tags", new StringBody(vars.expand(application.tags)));
                 entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0"));
                 entity.addPart("status",
