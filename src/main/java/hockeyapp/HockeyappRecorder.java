@@ -308,7 +308,7 @@ public class HockeyappRecorder extends Recorder {
                 String appId;
                 if (application.getNumberOldVersions() != null) {
                     if (application.uploadMethod instanceof VersionCreation) {
-                        appId = ((VersionCreation) application.uploadMethod).getAppId();
+                        appId = vars.expand(((VersionCreation) application.uploadMethod).getAppId());
                     } else {
                         //load App ID from reponse
                         appId = (String) parsedMap.get("public_identifier");
@@ -353,7 +353,7 @@ public class HockeyappRecorder extends Recorder {
         String path;
         if (application.uploadMethod instanceof VersionCreation) {
             VersionCreation versionCreation = (VersionCreation) application.uploadMethod;
-            if (versionCreation.getAppId() != null) {
+            if (vars.expand(versionCreation.getAppId()) != null) {
                 path = "/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/upload";
             } else {
                 listener.getLogger().println("No AppId specified!");
