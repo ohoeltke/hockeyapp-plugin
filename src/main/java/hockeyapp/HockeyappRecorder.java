@@ -212,7 +212,7 @@ public class HockeyappRecorder extends Recorder {
 
                 entity.addPart("ipa", fileBody);
 
-                if (vars.expand(application.dsymPath) != null) {
+                if (application.dsymPath != null && !vars.expand(application.dsymPath).isEmpty()) {
                     FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(application.dsymPath));
                     // Take the first one that matches the pattern
                     if (remoteDsymFiles.length == 0) {
@@ -225,7 +225,7 @@ public class HockeyappRecorder extends Recorder {
                     entity.addPart("dsym", dsymFileBody);
                 }
 
-                if (vars.expand(application.libsPath) != null) {
+                if (application.libsPath != null && !vars.expand(application.libsPath).isEmpty()) {
                     FilePath remoteLibsFiles[] = remoteWorkspace.list(vars.expand(application.libsPath));
                     // Take the first one that matches the pattern
                     if (remoteLibsFiles.length == 0) {
@@ -238,7 +238,7 @@ public class HockeyappRecorder extends Recorder {
                     entity.addPart("libs", libsFileBody);
                 }
 
-                if (vars.expand(application.tags) != null && application.tags.length() > 0)
+                if (application.tags != null && !vars.expand(application.tags).isEmpty() && application.tags.length() > 0)
                     entity.addPart("tags", new StringBody(vars.expand(application.tags)));
                 entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0"));
                 entity.addPart("status",
@@ -353,7 +353,7 @@ public class HockeyappRecorder extends Recorder {
         String path;
         if (application.uploadMethod instanceof VersionCreation) {
             VersionCreation versionCreation = (VersionCreation) application.uploadMethod;
-            if (vars.expand(versionCreation.getAppId()) != null) {
+            if (versionCreation.getAppId() != null && !vars.expand(versionCreation.getAppId()).isEmpty()) {
                 path = "/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/upload";
             } else {
                 listener.getLogger().println("No AppId specified!");
