@@ -38,6 +38,8 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
     public String dsymPath;
     public String libsPath;
     public String tags;
+    public String teams;
+    public boolean mandatory;
     public boolean downloadAllowed;
     public OldVersionHolder oldVersionHolder;
     public RadioButtonSupport releaseNotesMethod;
@@ -46,7 +48,8 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
     @DataBoundConstructor
     public HockeyappApplication(String apiToken, String appId, boolean notifyTeam,
                                 String filePath, String dsymPath, String libsPath,
-                                String tags, boolean downloadAllowed, OldVersionHolder oldVersionHolder,
+                                String tags, String teams, boolean mandatory, 
+                                boolean downloadAllowed, OldVersionHolder oldVersionHolder,
                                 RadioButtonSupport releaseNotesMethod, RadioButtonSupport uploadMethod) {
         this.schemaVersion = SCHEMA_VERSION_NUMBER;
         this.apiToken = Util.fixEmptyAndTrim(apiToken);
@@ -60,6 +63,8 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
         this.oldVersionHolder = oldVersionHolder;
         this.releaseNotesMethod = releaseNotesMethod;
         this.uploadMethod = uploadMethod;
+        this.teams = Util.fixEmptyAndTrim(teams);
+        this.mandatory = mandatory;
     }
 
     @SuppressWarnings("unused")
