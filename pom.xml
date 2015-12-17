@@ -9,7 +9,7 @@
   <artifactId>hockeyapp</artifactId>
   <name>HockeyApp Plugin</name>
   <description>Uploads iOS, Mac or Android apps to hockeyapp.net</description>
-  <version>1.2.2</version>
+  <version>1.2.1-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <!-- get every artifact through repo.jenkins-ci.org, which proxies all the artifacts that we need -->
