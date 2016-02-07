@@ -45,7 +45,8 @@ public class HockeyappRecorderConverter implements Converter {
 
         HockeyappApplication application = new HockeyappApplication(recorderObsolete.apiToken, recorderObsolete.appId,
                 recorderObsolete.notifyTeam, recorderObsolete.filePath, recorderObsolete.dsymPath,
-                null, recorderObsolete.tags, recorderObsolete.downloadAllowed, recorderObsolete.oldVersionHolder,
+                null, recorderObsolete.tags, recorderObsolete.teams, recorderObsolete.mandatory, 
+                recorderObsolete.downloadAllowed, recorderObsolete.oldVersionHolder,
                 recorderObsolete.releaseNotesMethod, recorderObsolete.uploadMethod);
         final List<HockeyappApplication> applications = Collections.singletonList(application);
         return new HockeyappRecorder(applications, recorderObsolete.debugMode,
@@ -65,6 +66,8 @@ public class HockeyappRecorderConverter implements Converter {
         public String filePath;
         public String dsymPath;
         public String tags;
+        public String teams;
+        public boolean mandatory;
         public boolean downloadAllowed;
         public boolean useChangelog;
         public String numberOldVersions;

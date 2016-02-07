@@ -240,9 +240,14 @@ public class HockeyappRecorder extends Recorder {
 
                 if (application.tags != null && !vars.expand(application.tags).isEmpty() && application.tags.length() > 0)
                     entity.addPart("tags", new StringBody(vars.expand(application.tags)));
+                    
+                entity.addPart("mandatory", new StringBody(application.mandatory ? "1" : "0"));
+                    
+                if (application.teams != null && !vars.expand(application.teams).isEmpty() && application.teams.length() > 0)
+                    entity.addPart("teams", new StringBody(vars.expand(application.teams)));
+                
                 entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0"));
-                entity.addPart("status",
-                        new StringBody(application.downloadAllowed ? "2" : "1"));
+                entity.addPart("status", new StringBody(application.downloadAllowed ? "2" : "1"));
                 httpPost.setEntity(entity);
 
                 long startTime = System.currentTimeMillis();
