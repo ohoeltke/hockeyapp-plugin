@@ -78,6 +78,18 @@
                     <f:textbox
                             checkUrl="'descriptorByName/hockeyapp.HockeyappApplication/checkNumberOldVersions?value='+escape(this.value)"/>
                 </f:entry>
+                <f:entry title="${%Sort Order for Deleting}" field="sortOldVersions">
+                    <select name="sortOldVersions">
+                        <f:option value="version" selected="${instance.sortOldVersions=='version'}">version</f:option>
+                        <f:option value="date" selected="${instance.sortOldVersions=='date'}">date</f:option>
+                    </select>
+                </f:entry>
+                <f:entry title="${%Strategy for Deleting}" field="strategyOldVersions">
+                    <select name="strategyOldVersions">
+                        <f:option value="purge" selected="${instance.strategyOldVersions=='purge'}">purge</f:option>
+                        <f:option value="soft" selected="${instance.strategyOldVersions=='soft'}">soft</f:option>
+                    </select>
+                </f:entry>
             </f:optionalBlock>
         </table>
     </f:block>
