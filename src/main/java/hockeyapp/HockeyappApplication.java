@@ -81,6 +81,14 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
         return oldVersionHolder == null ? null : oldVersionHolder.numberOldVersions;
     }
 
+    public String getSortOldVersions() {
+        return oldVersionHolder == null ? null : oldVersionHolder.sortOldVersions;
+    }
+
+    public String getStrategyOldVersions() {
+        return oldVersionHolder == null ? null : oldVersionHolder.strategyOldVersions;
+    }
+
     @Override
     public Descriptor<HockeyappApplication> getDescriptor() {
         return new DescriptorImpl();
@@ -88,10 +96,15 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
 
     public static class OldVersionHolder {
         private String numberOldVersions;
+        // Defaults per https://support.hockeyapp.net/kb/api/api-versions#delete-multiple-versions
+        private String sortOldVersions = "version";
+        private String strategyOldVersions = "purge";
 
         @DataBoundConstructor
-        public OldVersionHolder(String numberOldVersions) {
+        public OldVersionHolder(String numberOldVersions, String sortOldVersions, String strategyOldVersions) {
             this.numberOldVersions = Util.fixEmptyAndTrim(numberOldVersions);
+            this.sortOldVersions = Util.fixEmptyAndTrim(sortOldVersions);
+            this.strategyOldVersions = Util.fixEmptyAndTrim(strategyOldVersions);
         }
     }
 

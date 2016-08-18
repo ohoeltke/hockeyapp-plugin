@@ -71,6 +71,8 @@ public class HockeyappRecorderConverter implements Converter {
         public boolean downloadAllowed;
         public boolean useChangelog;
         public String numberOldVersions;
+        public String sortOldVersions;
+        public String strategyOldVersions;
         public boolean useAppVersionURL;
         public boolean debugMode;
         public boolean useNotesTypeMarkdown;
@@ -113,7 +115,7 @@ public class HockeyappRecorderConverter implements Converter {
 
             if (oldVersionHolder == null) {
                 oldVersionHolder =
-                        new HockeyappApplication.OldVersionHolder(Util.fixEmptyAndTrim(numberOldVersions));
+                        new HockeyappApplication.OldVersionHolder(Util.fixEmptyAndTrim(numberOldVersions), Util.fixEmptyAndTrim(sortOldVersions), Util.fixEmptyAndTrim(strategyOldVersions));
             }
 
             return this;
