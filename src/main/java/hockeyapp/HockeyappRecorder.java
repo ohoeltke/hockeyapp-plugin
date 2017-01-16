@@ -55,16 +55,12 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
 
-@XStreamConverter(HockeyappRecorderConverter.class)
 public class HockeyappRecorder extends Recorder {
 
     public static final long SCHEMA_VERSION_NUMBER = 2L;
     public static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
     public static final int DEFAULT_TIMEOUT = 60000;
 
-    @Exported
-    @XStreamAsAttribute
-    public long schemaVersion = SCHEMA_VERSION_NUMBER;
 
     @Exported
     public List<HockeyappApplication> applications;
@@ -82,7 +78,6 @@ public class HockeyappRecorder extends Recorder {
     @DataBoundConstructor
     public HockeyappRecorder(List<HockeyappApplication> applications, boolean debugMode,
                              BaseUrlHolder baseUrlHolder, boolean failGracefully) {
-        this.schemaVersion = SCHEMA_VERSION_NUMBER;
         this.applications = applications;
         this.debugMode = debugMode;
         if (baseUrlHolder != null) {
