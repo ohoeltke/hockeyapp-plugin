@@ -9,7 +9,7 @@
   <artifactId>hockeyapp</artifactId>
   <name>HockeyApp Plugin</name>
   <description>Uploads iOS, Mac or Android apps to hockeyapp.net</description>
-  <version>1.2.2</version>
+  <version>1.2.3-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <!-- get every artifact through repo.jenkins-ci.org, which proxies all the artifacts that we need -->
@@ -24,7 +24,7 @@
     <connection>scm:git:ssh://github.com/jenkinsci/hockeyapp-plugin.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/jenkinsci/hockeyapp-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/hockeyapp-plugin</url>
-    <tag>hockeyapp-1.2.2</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <url>http://wiki.jenkins-ci.org/display/JENKINS/HockeyApp+Plugin</url>
