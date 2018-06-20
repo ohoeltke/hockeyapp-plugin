@@ -23,7 +23,8 @@ public class FreestyleTest extends ProjectTest {
     private FreeStyleProject project;
 
     @SuppressWarnings("ConstantConditions")
-    @Before public void before() throws Exception {
+    @Before
+    public void before() throws Exception {
         super.before();
         project = jenkinsRule.createFreeStyleProject();
         project.getBuildersList().add(new TestBuilder() {
@@ -31,13 +32,14 @@ public class FreestyleTest extends ProjectTest {
                                    Launcher launcher,
                                    BuildListener listener)
                     throws InterruptedException, IOException {
-                build.getWorkspace().child(FILE_PATH).write(IPA_CONTENTS,"UTF-8");
+                build.getWorkspace().child(FILE_PATH).write(IPA_CONTENTS, "UTF-8");
                 return true;
             }
         });
     }
 
-    @Test public void testFreestyleBuild() throws Exception {
+    @Test
+    public void testFreestyleBuild() throws Exception {
         HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
                 .setLocalhostBaseUrl(mockHockeyAppServer.port())
                 .setApplications(Collections.singletonList(new HockeyappApplicationBuilder().create()))
@@ -57,7 +59,8 @@ public class FreestyleTest extends ProjectTest {
         failOnUnmatchedRequests();
     }
 
-    @Test public void testFreestyleBuildWithOldVersionHolder() throws Exception {
+    @Test
+    public void testFreestyleBuildWithOldVersionHolder() throws Exception {
         HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
                 .setLocalhostBaseUrl(mockHockeyAppServer.port())
                 .setApplications(Collections.singletonList(
@@ -86,7 +89,8 @@ public class FreestyleTest extends ProjectTest {
         failOnUnmatchedRequests();
     }
 
-    @Test public void testFreestyleBuildWithManualReleaseNotes() throws Exception {
+    @Test
+    public void testFreestyleBuildWithManualReleaseNotes() throws Exception {
         HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
                 .setLocalhostBaseUrl(mockHockeyAppServer.port())
                 .setApplications(Collections.singletonList(
@@ -111,4 +115,67 @@ public class FreestyleTest extends ProjectTest {
         failOnUnmatchedRequests();
     }
 
+    @Test
+    public void should_CreateConfigurationAction_When_BuildEndsInSuccess() throws Exception {
+        // Given
+        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
+                .setLocalhostBaseUrl(mockHockeyAppServer.port())
+                .setApplications(Collections.singletonList(
+                        new HockeyappApplicationBuilder()
+                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
+                                .create()))
+                .create();
+        project.getPublishersList().add(hockeyappRecorder);
+
+        // When
+        FreeStyleBuild build = project.scheduleBuild2(0).get();
+
+        // Then
+        assertBuildSuccessful(build);
+        assertConfigurationLinkActionIsCreated(build);
+        failOnUnmatchedRequests();
+    }
+
+    @Test
+    public void should_CreateInstallationAction_When_BuildEndsInSuccess() throws Exception {
+        // Given
+        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
+                .setLocalhostBaseUrl(mockHockeyAppServer.port())
+                .setApplications(Collections.singletonList(
+                        new HockeyappApplicationBuilder()
+                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
+                                .create()))
+                .create();
+        project.getPublishersList().add(hockeyappRecorder);
+
+        // When
+        FreeStyleBuild build = project.scheduleBuild2(0).get();
+
+        // Then
+        assertBuildSuccessful(build);
+        assertInstallationLinkActionIsCreated(build);
+        failOnUnmatchedRequests();
+    }
+
+    @Test
+    public void should_Not_CreateInstallationAction_When_APIKeyHasNoPermissionToRelease() throws Exception {
+        // Given
+        apiKeyHasNoUploadPermission();
+        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
+                .setLocalhostBaseUrl(mockHockeyAppServer.port())
+                .setApplications(Collections.singletonList(
+                        new HockeyappApplicationBuilder()
+                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
+                                .create()))
+                .create();
+        project.getPublishersList().add(hockeyappRecorder);
+
+        // When
+        FreeStyleBuild build = project.scheduleBuild2(0).get();
+
+        // Then
+        assertBuildSuccessful(build);
+        assertInstallationLinkActionIsNotCreated(build);
+        failOnUnmatchedRequests();
+    }
 }
