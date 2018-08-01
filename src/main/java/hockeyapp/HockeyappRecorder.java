@@ -34,7 +34,9 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
@@ -241,17 +243,19 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                         return this.failGracefully;
                     }
 
-                    String path = createPath(logger, vars, application);
+                    HttpInfo info = getHttpInfo(logger, vars, application);
+                    String path = info.getPath();
                     URL host = createHostUrl(vars);
                     URL url = new URL(host, path);
 
                     HttpClient httpclient = createPreconfiguredHttpClient();
 
-                    HttpPost httpPost = new HttpPost(url.toURI());
-
+                    HttpEntityEnclosingRequestBase httpRequest = info.getMethod() == HttpMethod.PUT
+                            ? new HttpPut(url.toURI())
+                            : new HttpPost(url.toURI());
 
                     FileBody fileBody = new FileBody(file);
-                    httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken(application)));
+                    httpRequest.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken(application)));
                     MultipartEntity entity = new MultipartEntity();
 
                     if (application.releaseNotesMethod != null) {
@@ -301,10 +305,10 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                         AppCreation appCreation = (AppCreation) application.uploadMethod;
                         entity.addPart("private", new StringBody(appCreation.publicPage ? "false" : "true"));
                     }
-                    httpPost.setEntity(entity);
+                    httpRequest.setEntity(entity);
 
                     long startTime = System.currentTimeMillis();
-                    HttpResponse response = httpclient.execute(httpPost);
+                    HttpResponse response = httpclient.execute(httpRequest);
                     long duration = System.currentTimeMillis() - startTime;
 
                     printUploadSpeed(duration, fileSize, logger);
@@ -412,20 +416,26 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
     }
 
-    private String createPath(PrintStream logger, EnvVars vars, HockeyappApplication application) {
-        String path;
+    private HttpInfo getHttpInfo(PrintStream logger, EnvVars vars, HockeyappApplication application) {
+        HttpInfo info = new HttpInfo();
         if (application.uploadMethod instanceof VersionCreation) {
             VersionCreation versionCreation = (VersionCreation) application.uploadMethod;
             if (versionCreation.getAppId() != null && !vars.expand(versionCreation.getAppId()).isEmpty()) {
-                path = "/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/upload";
+                info.setPath("/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/");
+                if (versionCreation.getVersionCode() != null && !vars.expand(versionCreation.getVersionCode()).isEmpty()) {
+                    info.setPath(info.getPath() + vars.expand(versionCreation.getVersionCode()));
+                    info.setMethod(HttpMethod.PUT);
+                } else {
+                    info.setPath(info.getPath() + "upload");
+                }
             } else {
                 logger.println("No AppId specified!");
-                path = null;
+                info.setPath(null);
             }
         } else {
-            path = "/api/2/apps/upload";
+            info.setPath("/api/2/apps/upload");
         }
-        return path;
+        return info;
     }
 
 
@@ -633,6 +643,10 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         return true;
     }
 
+    public enum HttpMethod {
+        POST, PUT
+    }
+
     public static class BaseUrlHolder {
 
         private String baseUrl;
@@ -783,6 +797,30 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
         public String getUrlName() {
             return null;
+        }
+    }
+
+    private class HttpInfo {
+        private String path;
+        private HttpMethod method = HttpMethod.POST;
+
+        HttpInfo() {
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public HttpMethod getMethod() {
+            return method;
+        }
+
+        public void setMethod(HttpMethod method) {
+            this.method = method;
         }
     }
 
