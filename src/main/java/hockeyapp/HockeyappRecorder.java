@@ -1,387 +1,827 @@
 package hockeyapp;
 
-import hudson.EnvVars;
-import hudson.Extension;
-import hudson.FilePath;
-import hudson.Launcher;
+import hudson.*;
 import hudson.model.*;
-import hudson.model.AbstractBuild;
-import hudson.tasks.*;
+import hudson.scm.ChangeLogSet;
+import hudson.scm.ChangeLogSet.Entry;
+import hudson.tasks.BuildStepDescriptor;
+import hudson.tasks.BuildStepMonitor;
+import hudson.tasks.Publisher;
+import hudson.tasks.Recorder;
+import hudson.util.FormValidation;
 import hudson.util.RunList;
+import jenkins.model.Jenkins;
+import jenkins.tasks.SimpleBuildStep;
+import net.hockeyapp.jenkins.releaseNotes.FileReleaseNotes;
+import net.hockeyapp.jenkins.releaseNotes.ManualReleaseNotes;
+import net.hockeyapp.jenkins.releaseNotes.NoReleaseNotes;
+import net.hockeyapp.jenkins.uploadMethod.AppCreation;
+import net.hockeyapp.jenkins.uploadMethod.VersionCreation;
+import net.sf.json.JSONObject;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.Predicate;
+import org.apache.commons.collections.iterators.ArrayIterator;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.client.HttpClient;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
+import org.jenkinsci.Symbol;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.kohsuke.stapler.DataBoundConstructor;
-import hudson.scm.ChangeLogSet.Entry;
+import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.export.Exported;
+
+import javax.annotation.Nonnull;
+import javax.servlet.ServletException;
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import net.sf.json.JSONObject;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
-import org.kohsuke.stapler.StaplerRequest;
+public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
-public class HockeyappRecorder extends Recorder {
-	private String apiToken;
+    public static final long SCHEMA_VERSION_NUMBER = 2L;
+    public static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
+    public static final int DEFAULT_TIMEOUT = 60000;
 
-	public String getApiToken() {
-		return this.apiToken;
-	}
+    @Exported
+    public List<HockeyappApplication> applications;
 
-	private String appId;
+    @Exported
+    public boolean debugMode;
+    @Exported
+    public String baseUrl;
 
-	public String getAppId() {
-		return this.appId;
-	}
+    @Exported
+    public boolean failGracefully;
 
-	private Boolean notifyTeam;
+    public BaseUrlHolder baseUrlHolder;
 
-	public Boolean getNotifyTeam() {
-		return this.notifyTeam;
-	}
+    private static final String UTF8 = "UTF-8";
+    private static final Charset UTF8_CHARSET = StandardCharsets.UTF_8;
 
-	private String buildNotes;
+    @DataBoundConstructor
+    public HockeyappRecorder(List<HockeyappApplication> applications, boolean debugMode,
+                             BaseUrlHolder baseUrlHolder, boolean failGracefully) {
+        this.applications = applications;
+        this.debugMode = debugMode;
+        this.baseUrlHolder = baseUrlHolder;
+        if (baseUrlHolder != null) {
+            this.baseUrl = baseUrlHolder.baseUrl;
+        }
 
-	public String getBuildNotes() {
-		return this.buildNotes;
-	}
+        this.failGracefully = failGracefully;
+    }
 
-	private String filePath;
+    List<HockeyappApplication> getApplications() {
+        return applications;
+    }
 
-	public String getFilePath() {
-		return this.filePath;
-	}
+    boolean getDebugMode() {
+        return debugMode;
+    }
 
-	private String dsymPath;
+    String getBaseUrl() {
+        return baseUrl;
+    }
 
-	public String getDsymPath() {
-		return this.dsymPath;
-	}
+    BaseUrlHolder getBaseUrlHolder() {
+        return baseUrlHolder;
+    }
 
-	private String tags;
+    boolean getFailGracefully() {
+        return failGracefully;
+    }
 
-	public String getTags() {
-		return this.tags;
-	}
+    @Override
+    public DescriptorImpl getDescriptor() {
+        return (DescriptorImpl) super.getDescriptor();
+    }
 
-	private Boolean downloadAllowed;
+    public BuildStepMonitor getRequiredMonitorService() {
+        return BuildStepMonitor.NONE;
+    }
 
-	public Boolean getDownloadAllowed() {
-		return this.downloadAllowed;
-	}
+    // Not a getter since build has to know proper value
+    public String fetchApiToken(HockeyappApplication application) {
+        if (application.apiToken == null) {
+            return getDescriptor().getDefaultToken();
+        } else {
+            return application.apiToken;
+        }
+    }
 
-	private Boolean useChangelog;
+    public boolean isDebugEnabled() {
+        return this.debugMode || this.getDescriptor().getGlobalDebugMode();
+    }
 
-	public Boolean getUseChangelog() {
-		return this.useChangelog;
-	}
+    // create an httpclient with some default settings, including socket timeouts
+    // note that this doesn't solve potential write timeouts
+    // http://stackoverflow.com/questions/1338885/java-socket-output-stream-writes-do-they-block
+    private HttpClient createPreconfiguredHttpClient() {
+        final Jenkins instance = Jenkins.getInstance();
+        DefaultHttpClient httpclient = new DefaultHttpClient();
+        HttpParams params = httpclient.getParams();
+        HttpConnectionParams.setConnectionTimeout(params, this.getDescriptor().getTimeoutInt());
+        HttpConnectionParams.setSoTimeout(params, this.getDescriptor().getTimeoutInt());
+        // Proxy setting
+        if (instance != null && instance.proxy != null) {
 
-	private Boolean cleanupOld;
+            ProxyConfiguration configuration = instance.proxy;
 
-	public Boolean getCleanupOld() {
-		return this.cleanupOld;
-	}
+            if (configuration.getUserName() != null && !configuration.getUserName().isEmpty()
+                    && configuration.getPassword() != null && !configuration.getPassword().isEmpty()) {
+                Credentials credentials = new UsernamePasswordCredentials(configuration.getUserName(), configuration.getPassword());
+                CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                credentialsProvider.setCredentials(new AuthScope(configuration.name, configuration.port), credentials);
+                httpclient.getCredentialsProvider().setCredentials(new AuthScope(configuration.name, configuration.port), credentials);
+            }
 
-	private String numberOldVersions;
+            HttpHost proxy = new HttpHost(configuration.name, configuration.port);
+            httpclient.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
+        }
 
-	public String getNumberOldVersions() {
-		return this.numberOldVersions;
-	}
+        return httpclient;
+    }
 
-	@DataBoundConstructor
-	public HockeyappRecorder(String apiToken, String appId, Boolean notifyTeam,
-			String buildNotes, String filePath, String dsymPath, String tags,
-			Boolean downloadAllowed, Boolean useChangelog, Boolean cleanupOld,
-			String numberOldVersions) {
-		this.apiToken = apiToken;
-		this.appId = appId;
-		this.notifyTeam = notifyTeam;
-		this.buildNotes = buildNotes;
-		this.filePath = filePath;
-		this.dsymPath = dsymPath;
-		this.downloadAllowed = downloadAllowed;
-		this.useChangelog = useChangelog;
-		this.cleanupOld = cleanupOld;
-		this.numberOldVersions = numberOldVersions;
-	}
+    @Override
+    public void perform(@Nonnull Run<?, ?> build, @Nonnull FilePath filePath, @Nonnull Launcher launcher, @Nonnull TaskListener listener) throws InterruptedException, IOException {
+        final Result buildResult = build.getResult();
+        if (buildResult != null && buildResult.isWorseOrEqualTo(Result.FAILURE)) {
+            build.setResult(Result.FAILURE);
+            return;
+        }
 
-	@Override
-	public DescriptorImpl getDescriptor() {
-		return (DescriptorImpl) super.getDescriptor();
-	}
 
-	public BuildStepMonitor getRequiredMonitorService() {
-		return BuildStepMonitor.NONE;
-	}
+        boolean result = true;
+        for (HockeyappApplication application : applications) {
+            result &= performForApplication(build, filePath, build.getEnvironment(listener), launcher, listener.getLogger(), application);
+        }
+        if (!result) {
+            build.setResult(Result.FAILURE);
+        }
+    }
 
-	@Override
-	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
-			BuildListener listener) {
-		if (build.getResult().isWorseOrEqualTo(Result.FAILURE))
-			return false;
+    @Override
+    public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
+                           BuildListener listener) {
+        final Result buildResult = build.getResult();
+        if (buildResult != null && buildResult.isWorseOrEqualTo(Result.FAILURE)) {
+            return false;
+        }
 
-		listener.getLogger().println("Uploading to hockeyapp");
-		File tempDir = null;
-		try {
-			EnvVars vars = build.getEnvironment(listener);
+        boolean result = true;
+        for (HockeyappApplication application : applications) {
+            final FilePath workspace = build.getWorkspace();
 
-			// Copy remote file to local file system.
-			tempDir = File.createTempFile("jtf", null);
-			tempDir.delete();
-			tempDir.mkdirs();
+            if (workspace != null) {
+                try {
+                    result &= performForApplication(build, workspace, build.getEnvironment(listener), launcher, listener.getLogger(), application);
+                } catch (Exception e) {
+                    e.printStackTrace(listener.getLogger());
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return result;
+    }
 
-			File file = getFileLocally(build.getWorkspace(),
-					vars.expand(filePath), tempDir);
-			listener.getLogger().println(file);
+    private boolean performForApplication(Run<?, ?> build, FilePath workspace, EnvVars vars, Launcher launcher, PrintStream logger, HockeyappApplication application) {
 
-			HttpClient httpclient = new DefaultHttpClient();
-			HttpPost httpPost = new HttpPost(
-					"https://rink.hockeyapp.net/api/2/apps/upload");
-			FileBody fileBody = new FileBody(file);
-			httpPost.setHeader("X-HockeyAppToken", apiToken);
-			MultipartEntity entity = new MultipartEntity();
-			if (!useChangelog) {
-			entity.addPart("notes", new StringBody(vars.expand(buildNotes)));
-			} else {
-			//StringBuilder sb = new StringBuilder(super.buildCompletionMessage(publisher,build,listener));
-			StringBuilder sb = new StringBuilder();
-			 if (!build.getChangeSet().isEmptySet()) {
-		            boolean hasManyChangeSets = build.getChangeSet().getItems().length > 1;
-		            for (Entry entry : build.getChangeSet()) {
-		                sb.append("\n");
-		                if (hasManyChangeSets) {
-		                    sb.append("* ");
-		                }
-		                sb.append(entry.getAuthor()).append(": ").append(entry.getMsg());
-		            }
-		        }
-			 entity.addPart("notes", new StringBody(sb.toString()));
-			}
-			entity.addPart("notes_type", new StringBody("0"));
+        logger.println(Messages.UPLOADING_TO_HOCKEYAPP());
+        File tempDir = null;
+        try {
 
-			entity.addPart("ipa", fileBody);
+            // Copy remote file to local file system.
+            tempDir = File.createTempFile("jtf", null);
+            if (tempDir.delete() && tempDir.mkdirs()) {
+                FilePath remoteWorkspace = new FilePath(launcher.getChannel(), workspace.getRemote());
+                FilePath[] remoteFiles = remoteWorkspace.list(vars.expand(application.filePath));
+                if (remoteFiles.length == 0) {
+                    logger.println("No IPA/APK found to upload in: " + vars.expand(application.filePath));
+                    return this.failGracefully;
+                }
 
-			if (!StringUtils.isEmpty(dsymPath)) {
-				File dsymFile = getFileLocally(build.getWorkspace(),
-						vars.expand(dsymPath), tempDir);
-				listener.getLogger().println(dsymFile);
-				FileBody dsymFileBody = new FileBody(dsymFile);
-				entity.addPart("dsym", dsymFileBody);
-			}
+                ArrayIterator remoteFilesIterator = new ArrayIterator(remoteFiles);
+                while (remoteFilesIterator.hasNext()) {
+                    FilePath remoteFile = (FilePath) remoteFilesIterator.next();
+                    File file = getLocalFileFromFilePath(remoteFile, tempDir);
+                    logger.println(file);
 
-			if (tags != null && tags.length() > 0)
-				entity.addPart("tags", new StringBody(tags));
-			entity.addPart("notify", new StringBody(notifyTeam ? "1" : "0"));
-			entity.addPart("status",
-					new StringBody(downloadAllowed ? "2" : "1"));
-			httpPost.setEntity(entity);
-			HttpResponse response = httpclient.execute(httpPost);
-			HttpEntity resEntity = response.getEntity();
+                    float fileSize = file.length();
 
-			InputStream is = resEntity.getContent();
+                    if (application.uploadMethod == null) {
+                        logger.println("No upload method specified!");
+                        return this.failGracefully;
+                    }
 
-			// Improved error handling.
-			if (response.getStatusLine().getStatusCode() != 201) {
-				String responseBody = new Scanner(is).useDelimiter("\\A")
-						.next();
-				listener.getLogger().println(
-						"Incorrect response code: "
-								+ response.getStatusLine().getStatusCode());
-				listener.getLogger().println(responseBody);
-				return false;
-			}
+                    HttpInfo info = getHttpInfo(logger, vars, application);
+                    String path = info.getPath();
+                    URL host = createHostUrl(vars);
+                    URL url = new URL(host, path);
 
-			JSONParser parser = new JSONParser();
+                    HttpClient httpclient = createPreconfiguredHttpClient();
 
-			final Map parsedMap = (Map) parser.parse(new BufferedReader(
-					new InputStreamReader(is)));
+                    HttpEntityEnclosingRequestBase httpRequest = info.getMethod() == HttpMethod.PUT
+                            ? new HttpPut(url.toURI())
+                            : new HttpPost(url.toURI());
 
-			HockeyappBuildAction installAction = new HockeyappBuildAction();
-			installAction.displayName = "Hockeyapp Install Link";
-			installAction.iconFileName = "package.gif";
-			installAction.urlName = (String) parsedMap.get("public_url");
-			build.addAction(installAction);
+                    FileBody fileBody = new FileBody(file);
+                    httpRequest.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken(application)));
+                    MultipartEntity entity = new MultipartEntity();
 
-			HockeyappBuildAction configureAction = new HockeyappBuildAction();
-			configureAction.displayName = "Hockeyapp Configuration Link";
-			configureAction.iconFileName = "gear2.gif";
-			configureAction.urlName = (String) parsedMap.get("config_url");
-			build.addAction(configureAction);
+                    if (application.releaseNotesMethod != null) {
+                        createReleaseNotes(build, workspace, entity, logger, tempDir, vars, application);
+                    }
 
-			if (cleanupOld) {
-				if (StringUtils.isBlank(appId)) {
-					listener.getLogger().println(
-							"No Public ID / App ID specified!");
-					listener.getLogger().println("Aborting cleanup");
-					return false;
-				}
-				if (StringUtils.isBlank(numberOldVersions)) {
-					listener.getLogger().println(
-							"No number of old versions to keep specified!");
-					listener.getLogger().println("Aborting cleanup");
-					return false;
-				}
-				cleanupOldVersions(listener);
-			}
 
-		} catch (Exception e) {
-			e.printStackTrace(listener.getLogger());
-			return false;
-		} finally {
-			try {
-				FileUtils.deleteDirectory(tempDir);
-			} catch (IOException e) {
-				try {
-					FileUtils.forceDeleteOnExit(tempDir);
-				} catch (IOException e1) {
-					e1.printStackTrace(listener.getLogger());
-				}
-			}
-		}
+                    entity.addPart("ipa", fileBody);
 
-		return true;
-	}
+                    if (application.dsymPath != null && !vars.expand(application.dsymPath).isEmpty()) {
+                        FilePath remoteDsymFiles[] = remoteWorkspace.list(vars.expand(application.dsymPath));
+                        // Take the first one that matches the pattern
+                        if (remoteDsymFiles.length == 0) {
+                            logger.println("No dSYM found to upload in: " + vars.expand(application.dsymPath));
+                            return this.failGracefully;
+                        }
+                        File dsymFile = getLocalFileFromFilePath(remoteDsymFiles[0], tempDir);
+                        logger.println(dsymFile);
+                        FileBody dsymFileBody = new FileBody(dsymFile);
+                        entity.addPart("dsym", dsymFileBody);
+                    }
 
-	private File getFileLocally(FilePath workingDir, String strFile,
-			File tempDir) throws IOException, InterruptedException {
-		if (workingDir.isRemote()) {
-			FilePath remoteFile = new FilePath(workingDir, strFile);
-			File file = new File(tempDir, remoteFile.getName());
-			file.createNewFile();
-			FileOutputStream fos = new FileOutputStream(file);
-			remoteFile.copyTo(fos);
-			fos.close();
-			return file;
-		} else {
-			return new File(strFile);
-		}
-	}
+                    if (application.libsPath != null && !vars.expand(application.libsPath).isEmpty()) {
+                        FilePath remoteLibsFiles[] = remoteWorkspace.list(vars.expand(application.libsPath));
+                        // Take the first one that matches the pattern
+                        if (remoteLibsFiles.length == 0) {
+                            logger.println("No LIBS found to upload in: " + vars.expand(application.libsPath));
+                            return this.failGracefully;
+                        }
+                        File libsFile = getLocalFileFromFilePath(remoteLibsFiles[0], tempDir);
+                        logger.println(libsFile);
+                        FileBody libsFileBody = new FileBody(libsFile);
+                        entity.addPart("libs", libsFileBody);
+                    }
 
-	@Override
-	public Collection<? extends Action> getProjectActions(
-			AbstractProject<?, ?> project) {
-		ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
-		RunList<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
+                    if (application.tags != null && !vars.expand(application.tags).isEmpty() && application.tags.length() > 0)
+                        entity.addPart("tags", new StringBody(vars.expand(application.tags)));
 
-		@SuppressWarnings("unchecked")
-		Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, new Predicate() {
-			public boolean evaluate(Object o) {
-				return ((AbstractBuild<?, ?>) o).getResult().isBetterOrEqualTo(
-						Result.SUCCESS);
-			}
-		});
+                    entity.addPart("mandatory", new StringBody(application.mandatory ? "1" : "0"));
 
-		ArrayList<AbstractBuild<?, ?>> filteredList = new ArrayList<AbstractBuild<?, ?>>(
-				predicated);
+                    if (application.teams != null && !vars.expand(application.teams).isEmpty() && application.teams.length() > 0)
+                        entity.addPart("teams", new StringBody(vars.expand(application.teams)));
 
-		Collections.reverse(filteredList);
-		for (AbstractBuild<?, ?> build : filteredList) {
-			List<HockeyappBuildAction> hockeyappActions = build
-					.getActions(HockeyappBuildAction.class);
-			if (hockeyappActions != null && hockeyappActions.size() > 0) {
-				for (HockeyappBuildAction action : hockeyappActions) {
-					actions.add(new HockeyappBuildAction(action));
-				}
-				break;
-			}
-		}
+                    entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0"));
+                    entity.addPart("status", new StringBody(application.downloadAllowed ? "2" : "1"));
+                    if (application.uploadMethod instanceof AppCreation) {
+                        AppCreation appCreation = (AppCreation) application.uploadMethod;
+                        entity.addPart("private", new StringBody(appCreation.publicPage ? "false" : "true"));
+                    }
+                    httpRequest.setEntity(entity);
 
-		return actions;
-	}
+                    long startTime = System.currentTimeMillis();
+                    HttpResponse response = httpclient.execute(httpRequest);
+                    long duration = System.currentTimeMillis() - startTime;
 
-	private boolean cleanupOldVersions(BuildListener listener) {
-		if (StringUtils.isNumeric(numberOldVersions)) {
-			if (Integer.parseInt(numberOldVersions) < 1) {
-				listener.getLogger().println("You need to keep min 1 Version!");
-				listener.getLogger().println("Aborting cleanup");
-			}
-			try {
-				HttpClient httpclient = new DefaultHttpClient();
-				HttpPost httpPost = new HttpPost(
-						"https://rink.hockeyapp.net/api/2/apps/" + appId
-								+ "/app_versions/delete");
-				httpPost.setHeader("X-HockeyAppToken", apiToken);
-				List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(
-						1);
-				nameValuePairs.add(new BasicNameValuePair("keep",
-						numberOldVersions));
-				httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-				HttpResponse response = httpclient.execute(httpPost);
-				HttpEntity resEntity = response.getEntity();
-				if (resEntity != null) {
-					InputStream is = resEntity.getContent();
+                    printUploadSpeed(duration, fileSize, logger);
 
-					// Improved error handling.
-					if (response.getStatusLine().getStatusCode() != 200) {
-						String responseBody = new Scanner(is).useDelimiter(
-								"\\A").next();
-						listener.getLogger().println(
-								"Incorrect response code: "
-										+ response.getStatusLine()
-												.getStatusCode());
-						listener.getLogger().println(responseBody);
-						return false;
-					}
+                    HttpEntity resEntity = response.getEntity();
 
-					JSONParser parser = new JSONParser();
+                    InputStream is = resEntity.getContent();
 
-					final Map parsedMap = (Map) parser
-							.parse(new BufferedReader(new InputStreamReader(is)));
-					listener.getLogger().println(
-							"Deleted Versions: "
-									+ String.valueOf(parsedMap
-											.get("total_entries")));
-				}
-			} catch (Exception e) {
-				e.printStackTrace(listener.getLogger());
-				return false;
-			}
-			return true;
-		}
-		return false;
-	}
+                    String responseBody = IOUtils.toString(is);
+                    // Improved error handling.
+                    if (response.getStatusLine().getStatusCode() != 201) {
+                        logger.println(
+                                Messages.UNEXPECTED_RESPONSE_CODE(response.getStatusLine().getStatusCode()));
+                        logger.println(responseBody);
+                        return this.failGracefully;
+                    } else if (isDebugEnabled()) { // DEBUG MODE output
+                        logger.println("RESPONSE: " + responseBody);
+                    }
 
-	@Extension
-	// This indicates to Jenkins that this is an implementation of an extension
-	// point.
-	public static final class DescriptorImpl extends
-			BuildStepDescriptor<Publisher> {
-		public DescriptorImpl() {
-			super(HockeyappRecorder.class);
-			load();
-		}
+                    JSONParser parser = new JSONParser();
 
-		public boolean isApplicable(Class<? extends AbstractProject> aClass) {
-			// Indicates that this builder can be used with all kinds of project
-			// types
-			return true;
-		}
+                    final Map parsedMap = (Map) parser.parse(responseBody);
 
-		@Override
-		public boolean configure(StaplerRequest req, JSONObject json)
-				throws FormException {
-			// XXX is this now the right style?
-			req.bindJSON(this, json);
-			save();
-			return true;
-		}
 
-		/**
-		 * This human readable name is used in the configuration screen.
-		 */
-		public String getDisplayName() {
-			return "Upload to Hockeyapp";
-		}
-	}
+                    String buildId = Long.toString((Long) parsedMap.get("id"));
+
+                    HockeyappBuildAction installAction = new HockeyappBuildAction();
+                    EnvAction envData = new EnvAction();
+                    int appIndex = applications.indexOf(application);
+
+                    HockeyappBuildAction configureAction = new HockeyappBuildAction();
+                    String configUrl = (String) parsedMap.get("config_url");
+                    configureAction.displayName = Messages.HOCKEYAPP_CONFIG_LINK();
+                    configureAction.iconFileName = "gear2.gif";
+                    configureAction.urlName = configUrl;
+                    build.addAction(configureAction);
+
+                    if (appIndex == 0) {
+                        envData.add("HOCKEYAPP_CONFIG_URL", configUrl);
+                    }
+
+                    envData.add("HOCKEYAPP_CONFIG_URL_" + appIndex, configUrl);
+
+                    String publicUrl = (String) parsedMap.get("public_url");
+                    if (publicUrl != null) {
+                        final String appVersion = configUrl.substring(configUrl.indexOf("/app_versions/"));
+                        String installUrl = publicUrl + appVersion;
+                        installAction.displayName = Messages.HOCKEYAPP_INSTALL_LINK();
+                        installAction.iconFileName = "package.gif";
+                        installAction.urlName = installUrl;
+                        build.addAction(installAction);
+
+                        if (appIndex == 0) {
+                            envData.add("HOCKEYAPP_INSTALL_URL", installUrl);
+                        }
+
+                        envData.add("HOCKEYAPP_INSTALL_URL_" + appIndex, installUrl);
+                    }
+
+                    build.addAction(envData);
+
+                    String appId;
+                    if (application.getNumberOldVersions() != null) {
+                        if (application.uploadMethod instanceof VersionCreation) {
+                            appId = vars.expand(((VersionCreation) application.uploadMethod).getAppId());
+                        } else {
+                            //load App ID from reponse
+                            appId = (String) parsedMap.get("public_identifier");
+                        }
+                        if (appId == null) {
+                            logger.println(Messages.APP_ID_MISSING_FOR_CLEANUP());
+                            logger.println(Messages.ABORTING_CLEANUP());
+                            return this.failGracefully;
+                        }
+                        if (application.getNumberOldVersions() == null || !StringUtils.isNumeric(application.getNumberOldVersions())) {
+                            logger.println(Messages.COUNT_MISSING_FOR_CLEANUP());
+                            logger.println(Messages.ABORTING_CLEANUP());
+                            return this.failGracefully;
+                        }
+                        if (Integer.parseInt(application.getNumberOldVersions()) < 1) {
+                            logger.println(Messages.TOO_FEW_VERSIONS_RETAINED());
+                            logger.println(Messages.ABORTING_CLEANUP());
+                            return this.failGracefully;
+                        }
+                        cleanupOldVersions(logger, vars, appId, host, application);
+                    }
+                }
+            }
+        } catch (IOException | URISyntaxException | InterruptedException | ParseException e) {
+            e.printStackTrace(logger);
+            return this.failGracefully;
+        } finally {
+            try {
+                FileUtils.deleteDirectory(tempDir);
+            } catch (IOException e) {
+                try {
+                    FileUtils.forceDeleteOnExit(tempDir);
+                } catch (IOException e1) {
+                    e1.printStackTrace(logger);
+                }
+            }
+        }
+
+        return true;
+
+    }
+
+    private HttpInfo getHttpInfo(PrintStream logger, EnvVars vars, HockeyappApplication application) {
+        HttpInfo info = new HttpInfo();
+        if (application.uploadMethod instanceof VersionCreation) {
+            VersionCreation versionCreation = (VersionCreation) application.uploadMethod;
+            if (versionCreation.getAppId() != null && !vars.expand(versionCreation.getAppId()).isEmpty()) {
+                info.setPath("/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/");
+                if (versionCreation.getVersionCode() != null && !vars.expand(versionCreation.getVersionCode()).isEmpty()) {
+                    info.setPath(info.getPath() + vars.expand(versionCreation.getVersionCode()));
+                    info.setMethod(HttpMethod.PUT);
+                } else {
+                    info.setPath(info.getPath() + "upload");
+                }
+            } else {
+                logger.println("No AppId specified!");
+                info.setPath(null);
+            }
+        } else {
+            info.setPath("/api/2/apps/upload");
+        }
+        return info;
+    }
+
+
+    private void createReleaseNotes(Run<?, ?> build, FilePath workspace, MultipartEntity entity, PrintStream logger,
+                                    File tempDir, EnvVars vars, HockeyappApplication application)
+            throws IOException, InterruptedException {
+        if (application.releaseNotesMethod instanceof NoReleaseNotes) {
+            return;
+        } else if (application.releaseNotesMethod instanceof ManualReleaseNotes) {
+            ManualReleaseNotes manualReleaseNotes = (ManualReleaseNotes) application.releaseNotesMethod;
+            if (manualReleaseNotes.getReleaseNotes() != null) {
+                entity.addPart("notes", new StringBody(vars.expand(manualReleaseNotes.getReleaseNotes()), UTF8_CHARSET));
+                entity.addPart("notes_type", new StringBody(manualReleaseNotes.isMarkdown() ? "1" : "0"));
+            }
+        } else if (application.releaseNotesMethod instanceof FileReleaseNotes) {
+            FileReleaseNotes fileReleaseNotes = (FileReleaseNotes) application.releaseNotesMethod;
+            if (fileReleaseNotes.getFileName() != null) {
+                File releaseNotesFile = getFileLocally(workspace, vars.expand(fileReleaseNotes.getFileName()), tempDir);
+                logger.println(releaseNotesFile);
+                String releaseNotes = readReleaseNotesFile(releaseNotesFile);
+                entity.addPart("notes", new StringBody(releaseNotes, UTF8_CHARSET));
+                entity.addPart("notes_type", new StringBody(fileReleaseNotes.isMarkdown() ? "1" : "0"));
+            }
+
+        } else {
+            StringBuilder sb = new StringBuilder();
+
+            ChangeLogSet<? extends Entry> changeLogSet;
+            if (build instanceof AbstractBuild) {
+                changeLogSet = ((AbstractBuild) build).getChangeSet();
+            } else {
+                changeLogSet = getChangeLogSetFromRun(build);
+            }
+            if (changeLogSet != null && !changeLogSet.isEmptySet()) {
+                boolean hasManyChangeSets = changeLogSet.getItems().length > 1;
+                for (Entry entry : changeLogSet) {
+                    sb.append("\n");
+                    if (hasManyChangeSets) {
+                        sb.append("* ");
+                    }
+                    sb.append(entry.getAuthor()).append(": ").append(entry.getMsg());
+                }
+            }
+
+            entity.addPart("notes", new StringBody(sb.toString(), UTF8_CHARSET));
+            entity.addPart("notes_type", new StringBody("0"));
+        }
+
+    }
+
+    private ChangeLogSet<? extends Entry> getChangeLogSetFromRun(Run<?, ?> build) {
+        ItemGroup<?> ig = build.getParent().getParent();
+        for (Item item : ig.getItems()) {
+            if (!item.getFullDisplayName().equals(build.getFullDisplayName())
+                    && !item.getFullDisplayName().equals(build.getParent().getFullDisplayName())) {
+                continue;
+            }
+
+            for (Job<?, ?> job : item.getAllJobs()) {
+                if (job instanceof AbstractProject<?, ?>) {
+                    //log("Job: " + job.getFullName());
+                    AbstractProject<?, ?> p = (AbstractProject<?, ?>) job;
+                    //log("Project: " + p.getFullName());
+                    return p.getBuilds().getLastBuild().getChangeSet();
+                }
+            }
+        }
+        return null;
+    }
+
+
+    private URL createHostUrl(EnvVars vars) throws MalformedURLException {
+        URL host;
+        if (baseUrl != null) {
+            host = new URL(vars.expand(baseUrl));
+        } else {
+            host = new URL(DEFAULT_HOCKEY_URL);
+        }
+        return host;
+    }
+
+    private void printUploadSpeed(long duration, float fileSize, PrintStream logger) {
+        Float speed = fileSize / duration;
+        speed *= 8000; // In order to get bits pers second not bytes per miliseconds
+
+        if (Float.isNaN(speed)) logger.println("NaN bps");
+
+        String[] units = {"bps", "Kbps", "Mbps", "Gbps"};
+        int idx = 0;
+        while (speed > 1024 && idx <= units.length - 1) {
+            speed /= 1024;
+            idx += 1;
+        }
+        logger.println("HockeyApp Upload Speed: " + String.format("%.2f", speed) + units[idx]);
+    }
+
+    private static File getFileLocally(FilePath workingDir, String strFile,
+                                       File tempDir) throws IOException, InterruptedException {
+        // Due to the previous inconsistency about whether or not to use absolute paths,
+        // here we automatically remove the workspace, so that 'strFile' is relative
+        // and existing jobs continue to function, regardless of how they were configured
+        if (strFile.startsWith(workingDir.getRemote())) {
+            strFile = strFile.substring(workingDir.getRemote().length() + 1);
+        }
+
+        if (workingDir.isRemote()) {
+            FilePath remoteFile = new FilePath(workingDir, strFile);
+            File file = new File(tempDir, remoteFile.getName());
+            if (file.createNewFile()) {
+                try (FileOutputStream fos = new FileOutputStream(file)) {
+                    remoteFile.copyTo(fos);
+                }
+                return file;
+            }
+        }
+
+        return new File(workingDir.getRemote(), strFile);
+    }
+
+    private static File getLocalFileFromFilePath(FilePath filePath, File tempDir) throws IOException, InterruptedException {
+        if (filePath.isRemote()) {
+            FilePath localFilePath = new FilePath(new FilePath(tempDir), filePath.getName());
+            filePath.copyTo(localFilePath);
+            return new File(localFilePath.toURI());
+        } else {
+            return new File(filePath.toURI());
+        }
+    }
+
+    @Override
+    public Collection<? extends Action> getProjectActions(
+            AbstractProject<?, ?> project) {
+        ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
+        RunList<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
+
+        @SuppressWarnings("unchecked")
+        Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, new Predicate() {
+            public boolean evaluate(Object o) {
+                Result r = ((AbstractBuild<?, ?>) o).getResult();
+                return r == null // no result yet
+                        ? false
+                        : r.isBetterOrEqualTo(Result.SUCCESS);
+            }
+        });
+
+        ArrayList<AbstractBuild<?, ?>> filteredList = new ArrayList<AbstractBuild<?, ?>>(
+                predicated);
+
+        Collections.reverse(filteredList);
+        for (AbstractBuild<?, ?> build : filteredList) {
+            List<HockeyappBuildAction> hockeyappActions = build
+                    .getActions(HockeyappBuildAction.class);
+            if (hockeyappActions != null && hockeyappActions.size() > 0) {
+                for (HockeyappBuildAction action : hockeyappActions) {
+                    actions.add(new HockeyappBuildAction(action));
+                }
+                break;
+            }
+        }
+
+        return actions;
+    }
+
+    private boolean cleanupOldVersions(PrintStream logger, EnvVars vars, String appId, URL host,
+                                       HockeyappApplication application) {
+        try {
+            HttpClient httpclient = createPreconfiguredHttpClient();
+            String path = "/api/2/apps/" + vars.expand(appId) + "/app_versions/delete";
+            HttpPost httpPost = new HttpPost(new URL(host, path).toURI());
+            httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken(application)));
+            List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+            nameValuePairs.add(new BasicNameValuePair("keep", application.getNumberOldVersions()));
+            nameValuePairs.add(new BasicNameValuePair("sort", application.getSortOldVersions()));
+            nameValuePairs.add(new BasicNameValuePair("strategy", application.getStrategyOldVersions()));
+            httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+            HttpResponse response = httpclient.execute(httpPost);
+            HttpEntity resEntity = response.getEntity();
+            if (resEntity != null) {
+                InputStream is = resEntity.getContent();
+
+                // Improved error handling.
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    String responseBody = new Scanner(is, UTF8).useDelimiter(
+                            "\\A").next();
+                    logger.println(
+                            Messages.UNEXPECTED_RESPONSE_CODE(
+                                    response.getStatusLine().getStatusCode())
+                    );
+                    logger.println(responseBody);
+                    return false;
+                }
+
+                JSONParser parser = new JSONParser();
+                final Map parsedMap = (Map) parser.parse(
+                        new BufferedReader(new InputStreamReader(is, UTF8_CHARSET)));
+                logger.println(
+                        Messages.DELETED_OLD_VERSIONS(String.valueOf(
+                                parsedMap.get("total_entries")))
+                );
+            }
+        } catch (Exception e) {
+            e.printStackTrace(logger);
+            return false;
+        }
+        return true;
+    }
+
+    public enum HttpMethod {
+        POST, PUT
+    }
+
+    public static class BaseUrlHolder {
+
+        private String baseUrl;
+
+        @DataBoundConstructor
+        public BaseUrlHolder(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+    }
+
+    @Symbol("hockeyApp")
+    @Extension
+    // This indicates to Jenkins that this is an implementation of an extension
+    // point.
+    public static final class DescriptorImpl extends
+            BuildStepDescriptor<Publisher> {
+        public DescriptorImpl() {
+            super(HockeyappRecorder.class);
+            load();
+        }
+
+        public String getDefaultToken() {
+            return defaultToken;
+        }
+
+        @SuppressWarnings("unused") // Used by Jenkins
+        public void setDefaultToken(String defaultToken) {
+            this.defaultToken = Util.fixEmptyAndTrim(defaultToken);
+            save();
+        }
+
+        public boolean getGlobalDebugMode() {
+            return this.globalDebugMode;
+
+        }
+
+        @SuppressWarnings("unused") // Used by Jenkins
+        public void setGlobalDebugMode(boolean globalDebugMode) {
+            this.globalDebugMode = globalDebugMode;
+            save();
+        }
+
+        private String defaultToken;
+
+        private boolean globalDebugMode = false;
+
+        private String timeout;
+
+        @SuppressWarnings("unused")
+        public String getTimeout() {
+            return timeout;
+        }
+
+        public int getTimeoutInt() {
+            if (this.timeout != null) {
+                try {
+                    return Integer.parseInt(this.timeout) * 1000;
+                } catch (Exception e) {
+                    return HockeyappRecorder.DEFAULT_TIMEOUT;
+                }
+            } else {
+                return HockeyappRecorder.DEFAULT_TIMEOUT;
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public void setTimeout(String timeout) {
+            this.timeout = Util.fixEmptyAndTrim(timeout);
+            save();
+        }
+
+        public boolean isApplicable(Class<? extends AbstractProject> aClass) {
+            // Indicates that this builder can be used with all kinds of project
+            // types
+            return true;
+        }
+
+        @Override
+        public boolean configure(StaplerRequest req, JSONObject json)
+                throws FormException {
+            // XXX is this now the right style?
+            req.bindJSON(this, json);
+            save();
+            return true;
+        }
+
+        /**
+         * This human readable name is used in the configuration screen.
+         */
+        public String getDisplayName() {
+            return Messages.UPLOAD_TO_HOCKEYAPP();
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckBaseUrl(@QueryParameter String value) throws IOException, ServletException {
+            if (value.isEmpty()) {
+                return FormValidation.error("You must enter a URL.");
+            } else {
+                return FormValidation.ok();
+            }
+
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckDebugMode(@QueryParameter String value) {
+            if (globalDebugMode) {
+                return FormValidation.warning("Debug Mode is enabled globally.");
+            } else {
+                return FormValidation.ok();
+            }
+        }
+
+    }
+
+    private String readReleaseNotesFile(File file) throws IOException {
+        try (FileInputStream inputStream = new FileInputStream(file)) {
+            return IOUtils.toString(inputStream, "UTF-8");
+        }
+    }
+
+    private static class EnvAction implements EnvironmentContributingAction {
+        private transient Map<String, String> data = new HashMap<String, String>();
+
+        private void add(String key, String value) {
+            if (data == null) return;
+            data.put(key, value);
+        }
+
+        public void buildEnvVars(AbstractBuild<?, ?> build, EnvVars env) {
+            if (data != null) env.putAll(data);
+        }
+
+        public void buildEnvironment(@Nonnull Run<?, ?> build, @Nonnull EnvVars env) {
+            if (data != null) env.putAll(data);
+        }
+
+        public String getIconFileName() {
+            return null;
+        }
+
+        public String getDisplayName() {
+            return null;
+        }
+
+        public String getUrlName() {
+            return null;
+        }
+    }
+
+    private class HttpInfo {
+        private String path;
+        private HttpMethod method = HttpMethod.POST;
+
+        HttpInfo() {
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public HttpMethod getMethod() {
+            return method;
+        }
+
+        public void setMethod(HttpMethod method) {
+            this.method = method;
+        }
+    }
+
 }

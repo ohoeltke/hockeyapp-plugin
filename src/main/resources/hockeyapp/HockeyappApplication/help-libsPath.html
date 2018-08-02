@@ -1,0 +1,10 @@
+<div>
+Optional path, relative to the build's workspace, to an archive with generated .so files.
+This archive must have the following structure: ${ARCHITECTURE}/*.so<br/>
+You can include build variables here like <code>${BUILD_NUMBER}</code> and they'll be expanded at build time.<br/>
+<p/>
+e.g. "MyApp/build/Beta-android/MyApp-Beta-${BUILD_NUMBER}.zip if your use ${BUILD_NUMBER} as technical version number.
+<p/>
+Can use wildcards like 'module/dist/**/*.zip'.
+See <a href='http://ant.apache.org/manual/Types/fileset.html'> the @includes of Ant fileset</a> for the exact format.
+</div>
