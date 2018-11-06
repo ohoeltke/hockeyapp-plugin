@@ -47,6 +47,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.jenkinsci.Symbol;
+import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -498,6 +499,10 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
             ChangeLogSet<? extends Entry> changeLogSet;
             if (build instanceof AbstractBuild) {
                 changeLogSet = ((AbstractBuild) build).getChangeSet();
+            } else if (build instanceof WorkflowRun) {
+                //to support multibranch pipelines
+                List<ChangeLogSet<? extends ChangeLogSet.Entry>> changeLogSetList = ((WorkflowRun) build).getChangeSets();
+                changeLogSet = changeLogSetList.isEmpty() ? null : changeLogSetList.get(0);
             } else {
                 changeLogSet = getChangeLogSetFromRun(build);
             }
