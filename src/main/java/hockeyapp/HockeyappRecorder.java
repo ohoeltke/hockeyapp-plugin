@@ -453,12 +453,16 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         HttpInfo info = new HttpInfo();
         if (application.uploadMethod instanceof VersionCreation) {
             VersionCreation versionCreation = (VersionCreation) application.uploadMethod;
-            if (versionCreation.getAppId() != null && !vars.expand(versionCreation.getAppId()).isEmpty()) {
+            if (!vars.expand(versionCreation.getAppId()).isEmpty()) {
                 info.setPath("/api/2/apps/" + vars.expand(versionCreation.getAppId()) + "/app_versions/");
                 if (versionCreation.getVersionCode() != null && !vars.expand(versionCreation.getVersionCode()).isEmpty()) {
+                    // Update an existing version
+                    // https://support.hockeyapp.net/kb/api/api-versions#update-version
                     info.setPath(info.getPath() + vars.expand(versionCreation.getVersionCode()));
                     info.setMethod(HttpPut.METHOD_NAME);
                 } else {
+                    // Upload a new version
+                    // https://support.hockeyapp.net/kb/api/api-versions#upload-version
                     info.setPath(info.getPath() + "upload");
                 }
             } else {
@@ -466,6 +470,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                 info.setPath(null);
             }
         } else {
+            // Uploads app and assigns a new version. Only if there is no existing app?
+            // https://support.hockeyapp.net/kb/api/api-apps#upload-app
             info.setPath("/api/2/apps/upload");
         }
         return info;
