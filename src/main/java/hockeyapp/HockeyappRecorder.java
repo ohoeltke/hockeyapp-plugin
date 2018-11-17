@@ -23,7 +23,7 @@ import org.apache.commons.collections.Predicate;
 import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -477,7 +477,6 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         return info;
     }
 
-
     private void createReleaseNotes(Run<?, ?> build, FilePath workspace, MultipartEntity entity, PrintStream logger,
                                     File tempDir, EnvVars vars, HockeyappApplication application)
             throws IOException, InterruptedException {
@@ -548,7 +547,6 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         }
         return null;
     }
-
 
     private URL createHostUrl(EnvVars vars) throws MalformedURLException {
         URL host;
@@ -785,13 +783,23 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
+        public FormValidation doCheckTimeout(@QueryParameter String value) {
+            if (value == null || value.isEmpty()) {
+                return FormValidation.ok();
+            } else if (!StringUtils.isNumeric(value)) {
+                return FormValidation.error("Must be an integer value.");
+            } else {
+                return FormValidation.ok();
+            }
+        }
+
+        @SuppressWarnings("unused")
         public FormValidation doCheckBaseUrl(@QueryParameter String value) throws IOException, ServletException {
             if (value.isEmpty()) {
                 return FormValidation.error("You must enter a URL.");
             } else {
                 return FormValidation.ok();
             }
-
         }
 
         @SuppressWarnings("unused")
