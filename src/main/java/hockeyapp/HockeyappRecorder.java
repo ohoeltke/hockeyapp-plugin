@@ -1,7 +1,22 @@
 package hockeyapp;
 
-import hudson.*;
-import hudson.model.*;
+import hudson.EnvVars;
+import hudson.Extension;
+import hudson.FilePath;
+import hudson.Launcher;
+import hudson.ProxyConfiguration;
+import hudson.Util;
+import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
+import hudson.model.Action;
+import hudson.model.BuildListener;
+import hudson.model.EnvironmentContributingAction;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
+import hudson.model.Job;
+import hudson.model.Result;
+import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.scm.ChangeLogSet;
 import hudson.scm.ChangeLogSet.Entry;
 import hudson.tasks.BuildStepDescriptor;
@@ -14,16 +29,15 @@ import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.hockeyapp.jenkins.releaseNotes.FileReleaseNotes;
 import net.hockeyapp.jenkins.releaseNotes.ManualReleaseNotes;
-import net.hockeyapp.jenkins.releaseNotes.NoReleaseNotes;
 import net.hockeyapp.jenkins.uploadMethod.AppCreation;
 import net.hockeyapp.jenkins.uploadMethod.VersionCreation;
 import net.sf.json.JSONObject;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.Predicate;
 import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -38,6 +52,7 @@ import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
@@ -51,19 +66,33 @@ import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.export.Exported;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
-import javax.servlet.ServletException;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.regex.Pattern;
 
 public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
@@ -71,54 +100,73 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
     public static final long SCHEMA_VERSION_NUMBER = 2L;
     public static final String DEFAULT_HOCKEY_URL = "https://rink.hockeyapp.net";
     public static final int DEFAULT_TIMEOUT = 60000;
-
+    private static final String UTF8 = "UTF-8";
+    private static final Charset DEFAULT_CHARACTER_SET = StandardCharsets.UTF_8;
+    private static final ContentType DEFAULT_CONTENT_TYPE = ContentType.create("text/plain", Consts.UTF_8);
     @Exported
-    public List<HockeyappApplication> applications;
-
+    public final List<HockeyappApplication> applications;
     @Exported
     public boolean debugMode;
     @Exported
+    @CheckForNull
     public String baseUrl;
-
     @Exported
     public boolean failGracefully;
-
     public BaseUrlHolder baseUrlHolder;
 
-    private static final String UTF8 = "UTF-8";
-    private static final Charset UTF8_CHARSET = StandardCharsets.UTF_8;
-
-    @DataBoundConstructor
-    public HockeyappRecorder(List<HockeyappApplication> applications, boolean debugMode,
-                             BaseUrlHolder baseUrlHolder, boolean failGracefully) {
-        this.applications = applications;
+    @Deprecated
+    public HockeyappRecorder(@CheckForNull List<HockeyappApplication> applications, boolean debugMode,
+                             @CheckForNull BaseUrlHolder baseUrlHolder, boolean failGracefully) {
+        this.applications = Util.fixNull(applications);
         this.debugMode = debugMode;
         this.baseUrlHolder = baseUrlHolder;
         if (baseUrlHolder != null) {
             this.baseUrl = baseUrlHolder.baseUrl;
         }
-
         this.failGracefully = failGracefully;
     }
 
-    List<HockeyappApplication> getApplications() {
+    @DataBoundConstructor
+    public HockeyappRecorder(@CheckForNull List<HockeyappApplication> applications) {
+        this.applications = Util.fixNull(applications);
+    }
+
+    public List<HockeyappApplication> getApplications() {
         return applications;
     }
 
-    boolean getDebugMode() {
+    public boolean getDebugMode() {
         return debugMode;
     }
 
-    String getBaseUrl() {
-        return baseUrl;
+    @DataBoundSetter
+    public void setDebugMode(boolean debugMode) {
+        this.debugMode = debugMode;
     }
 
+    @Nonnull
+    public String getBaseUrl() {
+        return baseUrl == null ? DEFAULT_HOCKEY_URL : baseUrl;
+    }
+
+    @DataBoundSetter
+    public void setBaseUrl(@Nonnull String baseUrl) {
+        this.baseUrl = baseUrl.isEmpty() ? null : baseUrl;
+    }
+
+    @Deprecated
+    @Nonnull
     BaseUrlHolder getBaseUrlHolder() {
         return baseUrlHolder;
     }
 
-    boolean getFailGracefully() {
+    public boolean getFailGracefully() {
         return failGracefully;
+    }
+
+    @DataBoundSetter
+    public void setFailGracefully(boolean failGracefully) {
+        this.failGracefully = failGracefully;
     }
 
     @Override
@@ -154,18 +202,17 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         HttpConnectionParams.setConnectionTimeout(params, this.getDescriptor().getTimeoutInt());
         HttpConnectionParams.setSoTimeout(params, this.getDescriptor().getTimeoutInt());
 
-        boolean hasProxy = instance != null && instance.proxy != null;
+        boolean hasProxy = instance.proxy != null;
 
-        // ProxyConfig might have noproxy-exception for certain hosts
+        // ProxyConfig might have no proxy exception for certain hosts
         boolean useProxy = true;
         String matchedPattern = null; // to log properly
         if (hasProxy) {
             List<Pattern> noProxyHostPatterns = instance.proxy.getNoProxyHostPatterns();
-            for (int i = 0; i < noProxyHostPatterns.size(); i++) {
-                Pattern noproxypattern = noProxyHostPatterns.get(i);
-                if (noproxypattern.matcher(url.getHost()).matches()) {
+            for (Pattern noProxyPattern : noProxyHostPatterns) {
+                if (noProxyPattern.matcher(url.getHost()).matches()) {
                     useProxy = false;
-                    matchedPattern = noproxypattern.toString();
+                    matchedPattern = noProxyPattern.toString();
                 }
             }
         }
@@ -321,18 +368,18 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                     }
 
                     if (application.tags != null && !vars.expand(application.tags).isEmpty() && application.tags.length() > 0)
-                        entity.addPart("tags", new StringBody(vars.expand(application.tags)));
+                        entity.addPart("tags", new StringBody(vars.expand(application.tags), DEFAULT_CONTENT_TYPE));
 
-                    entity.addPart("mandatory", new StringBody(application.mandatory ? "1" : "0"));
+                    entity.addPart("mandatory", new StringBody(application.mandatory ? "1" : "0", DEFAULT_CONTENT_TYPE));
 
                     if (application.teams != null && !vars.expand(application.teams).isEmpty() && application.teams.length() > 0)
-                        entity.addPart("teams", new StringBody(vars.expand(application.teams)));
+                        entity.addPart("teams", new StringBody(vars.expand(application.teams), DEFAULT_CONTENT_TYPE));
 
-                    entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0"));
-                    entity.addPart("status", new StringBody(application.downloadAllowed ? "2" : "1"));
+                    entity.addPart("notify", new StringBody(application.notifyTeam ? "1" : "0", DEFAULT_CONTENT_TYPE));
+                    entity.addPart("status", new StringBody(application.downloadAllowed ? "2" : "1", DEFAULT_CONTENT_TYPE));
                     if (application.uploadMethod instanceof AppCreation) {
                         AppCreation appCreation = (AppCreation) application.uploadMethod;
-                        entity.addPart("private", new StringBody(appCreation.publicPage ? "false" : "true"));
+                        entity.addPart("private", new StringBody(appCreation.publicPage ? "false" : "true", DEFAULT_CONTENT_TYPE));
                     }
                     httpRequest.setEntity(entity);
 
@@ -346,7 +393,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
                     InputStream is = resEntity.getContent();
 
-                    String responseBody = IOUtils.toString(is);
+                    String responseBody = IOUtils.toString(is, DEFAULT_CHARACTER_SET);
                     // Improved error handling.
                     if (response.getStatusLine().getStatusCode() != 201) {
                         logger.println(
@@ -408,7 +455,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                         if (application.uploadMethod instanceof VersionCreation) {
                             appId = vars.expand(((VersionCreation) application.uploadMethod).getAppId());
                         } else {
-                            //load App ID from reponse
+                            //load App ID from response
                             appId = (String) parsedMap.get("public_identifier");
                         }
                         if (appId == null) {
@@ -480,13 +527,11 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
     private void createReleaseNotes(Run<?, ?> build, FilePath workspace, MultipartEntity entity, PrintStream logger,
                                     File tempDir, EnvVars vars, HockeyappApplication application)
             throws IOException, InterruptedException {
-        if (application.releaseNotesMethod instanceof NoReleaseNotes) {
-            return;
-        } else if (application.releaseNotesMethod instanceof ManualReleaseNotes) {
+        if (application.releaseNotesMethod instanceof ManualReleaseNotes) {
             ManualReleaseNotes manualReleaseNotes = (ManualReleaseNotes) application.releaseNotesMethod;
             if (manualReleaseNotes.getReleaseNotes() != null) {
-                entity.addPart("notes", new StringBody(vars.expand(manualReleaseNotes.getReleaseNotes()), UTF8_CHARSET));
-                entity.addPart("notes_type", new StringBody(manualReleaseNotes.isMarkdown() ? "1" : "0"));
+                entity.addPart("notes", new StringBody(vars.expand(manualReleaseNotes.getReleaseNotes()), DEFAULT_CONTENT_TYPE));
+                entity.addPart("notes_type", new StringBody(manualReleaseNotes.isMarkdown() ? "1" : "0", DEFAULT_CONTENT_TYPE));
             }
         } else if (application.releaseNotesMethod instanceof FileReleaseNotes) {
             FileReleaseNotes fileReleaseNotes = (FileReleaseNotes) application.releaseNotesMethod;
@@ -494,10 +539,9 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                 File releaseNotesFile = getFileLocally(workspace, vars.expand(fileReleaseNotes.getFileName()), tempDir);
                 logger.println(releaseNotesFile);
                 String releaseNotes = readReleaseNotesFile(releaseNotesFile);
-                entity.addPart("notes", new StringBody(releaseNotes, UTF8_CHARSET));
-                entity.addPart("notes_type", new StringBody(fileReleaseNotes.isMarkdown() ? "1" : "0"));
+                entity.addPart("notes", new StringBody(releaseNotes, DEFAULT_CONTENT_TYPE));
+                entity.addPart("notes_type", new StringBody(fileReleaseNotes.isMarkdown() ? "1" : "0", DEFAULT_CONTENT_TYPE));
             }
-
         } else {
             StringBuilder sb = new StringBuilder();
 
@@ -505,7 +549,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
             if (build instanceof AbstractBuild) {
                 changeLogSet = ((AbstractBuild) build).getChangeSet();
             } else if (build instanceof WorkflowRun) {
-                //to support multibranch pipelines
+                // To support multi branch pipelines
                 List<ChangeLogSet<? extends ChangeLogSet.Entry>> changeLogSetList = ((WorkflowRun) build).getChangeSets();
                 changeLogSet = changeLogSetList.isEmpty() ? null : changeLogSetList.get(0);
             } else {
@@ -522,8 +566,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                 }
             }
 
-            entity.addPart("notes", new StringBody(sb.toString(), UTF8_CHARSET));
-            entity.addPart("notes_type", new StringBody("0"));
+            entity.addPart("notes", new StringBody(sb.toString(), DEFAULT_CONTENT_TYPE));
+            entity.addPart("notes_type", new StringBody("0", DEFAULT_CONTENT_TYPE));
         }
 
     }
@@ -550,7 +594,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
     private URL createHostUrl(EnvVars vars) throws MalformedURLException {
         URL host;
-        if (baseUrl != null) {
+        if (baseUrl != null && !baseUrl.isEmpty()) {
             host = new URL(vars.expand(baseUrl));
         } else {
             host = new URL(DEFAULT_HOCKEY_URL);
@@ -559,8 +603,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
     }
 
     private void printUploadSpeed(long duration, float fileSize, PrintStream logger) {
-        Float speed = fileSize / duration;
-        speed *= 8000; // In order to get bits pers second not bytes per miliseconds
+        float speed = fileSize / duration;
+        speed *= 8000; // In order to get bits per second not bytes per milliseconds
 
         if (Float.isNaN(speed)) logger.println("NaN bps");
 
@@ -573,8 +617,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         logger.println("HockeyApp Upload Speed: " + String.format("%.2f", speed) + units[idx]);
     }
 
-    private static File getFileLocally(FilePath workingDir, String strFile,
-                                       File tempDir) throws IOException, InterruptedException {
+    private File getFileLocally(FilePath workingDir, String strFile,
+                                File tempDir) throws IOException, InterruptedException {
         // Due to the previous inconsistency about whether or not to use absolute paths,
         // here we automatically remove the workspace, so that 'strFile' is relative
         // and existing jobs continue to function, regardless of how they were configured
@@ -596,7 +640,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         return new File(workingDir.getRemote(), strFile);
     }
 
-    private static File getLocalFileFromFilePath(FilePath filePath, File tempDir) throws IOException, InterruptedException {
+    private File getLocalFileFromFilePath(FilePath filePath, File tempDir) throws IOException, InterruptedException {
         if (filePath.isRemote()) {
             FilePath localFilePath = new FilePath(new FilePath(tempDir), filePath.getName());
             filePath.copyTo(localFilePath);
@@ -606,30 +650,28 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         }
     }
 
+    @Nonnull
     @Override
     public Collection<? extends Action> getProjectActions(
             AbstractProject<?, ?> project) {
-        ArrayList<HockeyappBuildAction> actions = new ArrayList<HockeyappBuildAction>();
+        ArrayList<HockeyappBuildAction> actions = new ArrayList<>();
         RunList<? extends AbstractBuild<?, ?>> builds = project.getBuilds();
 
         @SuppressWarnings("unchecked")
-        Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, new Predicate() {
-            public boolean evaluate(Object o) {
-                Result r = ((AbstractBuild<?, ?>) o).getResult();
-                return r == null // no result yet
-                        ? false
-                        : r.isBetterOrEqualTo(Result.SUCCESS);
-            }
+        Collection<AbstractBuild<?, ?>> predicated = CollectionUtils.select(builds, object -> {
+            Result r = ((AbstractBuild<?, ?>) object).getResult();
+            // no result yet
+            return r != null && r.isBetterOrEqualTo(Result.SUCCESS);
         });
 
-        ArrayList<AbstractBuild<?, ?>> filteredList = new ArrayList<AbstractBuild<?, ?>>(
+        ArrayList<AbstractBuild<?, ?>> filteredList = new ArrayList<>(
                 predicated);
 
         Collections.reverse(filteredList);
         for (AbstractBuild<?, ?> build : filteredList) {
             List<HockeyappBuildAction> hockeyappActions = build
                     .getActions(HockeyappBuildAction.class);
-            if (hockeyappActions != null && hockeyappActions.size() > 0) {
+            if (hockeyappActions.size() > 0) {
                 for (HockeyappBuildAction action : hockeyappActions) {
                     actions.add(new HockeyappBuildAction(action));
                 }
@@ -640,15 +682,15 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         return actions;
     }
 
-    private boolean cleanupOldVersions(PrintStream logger, EnvVars vars, String appId, URL host,
-                                       HockeyappApplication application) {
+    private void cleanupOldVersions(PrintStream logger, EnvVars vars, String appId, URL host,
+                                    HockeyappApplication application) {
         try {
             String path = "/api/2/apps/" + vars.expand(appId) + "/app_versions/delete";
             URL url = new URL(host, path);
             HttpClient httpclient = createPreconfiguredHttpClient(url, logger);
             HttpPost httpPost = new HttpPost(url.toURI());
             httpPost.setHeader("X-HockeyAppToken", vars.expand(fetchApiToken(application)));
-            List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+            List<NameValuePair> nameValuePairs = new ArrayList<>(1);
             nameValuePairs.add(new BasicNameValuePair("keep", application.getNumberOldVersions()));
             nameValuePairs.add(new BasicNameValuePair("sort", application.getSortOldVersions()));
             nameValuePairs.add(new BasicNameValuePair("strategy", application.getStrategyOldVersions()));
@@ -667,12 +709,12 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
                                     response.getStatusLine().getStatusCode())
                     );
                     logger.println(responseBody);
-                    return false;
+                    return;
                 }
 
                 JSONParser parser = new JSONParser();
                 final Map parsedMap = (Map) parser.parse(
-                        new BufferedReader(new InputStreamReader(is, UTF8_CHARSET)));
+                        new BufferedReader(new InputStreamReader(is, DEFAULT_CHARACTER_SET)));
                 logger.println(
                         Messages.DELETED_OLD_VERSIONS(String.valueOf(
                                 parsedMap.get("total_entries")))
@@ -680,16 +722,20 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
             }
         } catch (Exception e) {
             e.printStackTrace(logger);
-            return false;
         }
-        return true;
     }
 
+    private String readReleaseNotesFile(File file) throws IOException {
+        try (FileInputStream inputStream = new FileInputStream(file)) {
+            return IOUtils.toString(inputStream, "UTF-8");
+        }
+    }
+
+    @Deprecated
     public static class BaseUrlHolder {
 
-        private String baseUrl;
+        private final String baseUrl;
 
-        @DataBoundConstructor
         public BaseUrlHolder(String baseUrl) {
             this.baseUrl = baseUrl;
         }
@@ -705,6 +751,10 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
     // point.
     public static final class DescriptorImpl extends
             BuildStepDescriptor<Publisher> {
+        private String defaultToken;
+        private boolean globalDebugMode = false;
+        private String timeout;
+
         public DescriptorImpl() {
             super(HockeyappRecorder.class);
             load();
@@ -731,15 +781,15 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
             save();
         }
 
-        private String defaultToken;
-
-        private boolean globalDebugMode = false;
-
-        private String timeout;
-
         @SuppressWarnings("unused")
         public String getTimeout() {
             return timeout;
+        }
+
+        @SuppressWarnings("unused")
+        public void setTimeout(String timeout) {
+            this.timeout = Util.fixEmptyAndTrim(timeout);
+            save();
         }
 
         public int getTimeoutInt() {
@@ -754,12 +804,6 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
             }
         }
 
-        @SuppressWarnings("unused")
-        public void setTimeout(String timeout) {
-            this.timeout = Util.fixEmptyAndTrim(timeout);
-            save();
-        }
-
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project
             // types
@@ -767,8 +811,7 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         }
 
         @Override
-        public boolean configure(StaplerRequest req, JSONObject json)
-                throws FormException {
+        public boolean configure(StaplerRequest req, JSONObject json) {
             // XXX is this now the right style?
             req.bindJSON(this, json);
             save();
@@ -778,6 +821,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         /**
          * This human readable name is used in the configuration screen.
          */
+        @Nonnull
+        @Override
         public String getDisplayName() {
             return Messages.UPLOAD_TO_HOCKEYAPP();
         }
@@ -794,9 +839,13 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
-        public FormValidation doCheckBaseUrl(@QueryParameter String value) throws IOException, ServletException {
-            if (value.isEmpty()) {
-                return FormValidation.error("You must enter a URL.");
+        public FormValidation doCheckBaseUrl(@QueryParameter String value) {
+            if (value == null || value.isEmpty()) {
+                return FormValidation.ok();
+            } else if (!(value.startsWith("http://") || value.startsWith("https://"))) {
+                return FormValidation.error("Must use http or https protocol.");
+            } else if (value.endsWith("/")) {
+                return FormValidation.error("Must not end with / character.");
             } else {
                 return FormValidation.ok();
             }
@@ -813,14 +862,8 @@ public class HockeyappRecorder extends Recorder implements SimpleBuildStep {
 
     }
 
-    private String readReleaseNotesFile(File file) throws IOException {
-        try (FileInputStream inputStream = new FileInputStream(file)) {
-            return IOUtils.toString(inputStream, "UTF-8");
-        }
-    }
-
     private static class EnvAction implements EnvironmentContributingAction {
-        private transient Map<String, String> data = new HashMap<String, String>();
+        private final transient Map<String, String> data = new HashMap<>();
 
         private void add(String key, String value) {
             if (data == null) return;

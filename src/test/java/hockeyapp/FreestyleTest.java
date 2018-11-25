@@ -1,7 +1,6 @@
 package hockeyapp;
 
 import hockeyapp.builder.HockeyappApplicationBuilder;
-import hockeyapp.builder.HockeyappRecorderBuilder;
 import hudson.Launcher;
 import hudson.model.AbstractBuild;
 import hudson.model.BuildListener;
@@ -15,8 +14,13 @@ import org.jvnet.hudson.test.TestBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.putRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static hockeyapp.builder.HockeyappApplicationBuilder.FILE_PATH;
 
 public class FreestyleTest extends ProjectTest {
@@ -40,15 +44,16 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void testFreestyleBuild() throws Exception {
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(new HockeyappApplicationBuilder().create()))
-                .create();
-        project.getPublishersList().add(hockeyappRecorder);
+    public void should_SendUploadRequest_WithDefaults_Success() throws Exception {
+        // Given
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder().create();
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
+        // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
 
+        // Then
         assertBuildSuccessful(build);
         mockHockeyAppServer.verify(1, postRequestedFor(urlEqualTo(HOCKEY_APP_UPLOAD_URL))
                 .withHeader("Content-Type", containing("multipart/form-data;"))
@@ -61,21 +66,21 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void testFreestyleBuildWithOldVersionHolder() throws Exception {
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setOldVersionHolder(new HockeyappApplication.OldVersionHolder(
-                                        "5",
-                                        "version",
-                                        "purge"))
-                                .create()))
+    public void should_SendUploadRequest_WithOldVersion_Success() throws Exception {
+        // Given
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setOldVersionHolder(new HockeyappApplication.OldVersionHolder(
+                        "5",
+                        "version",
+                        "purge"))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
+        // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
 
+        // Then
         assertBuildSuccessful(build);
         mockHockeyAppServer.verify(1, postRequestedFor(urlEqualTo(HOCKEY_APP_UPLOAD_URL))
                 .withHeader("Content-Type", containing("multipart/form-data;"))
@@ -91,18 +96,18 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void testFreestyleBuildWithManualReleaseNotes() throws Exception {
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
-                                .create()))
+    public void should_SendUploadRequest_WithManualReleaseNotes_Success() throws Exception {
+        // Given
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
+        // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
 
+        // Then
         assertBuildSuccessful(build);
         mockHockeyAppServer.verify(1, postRequestedFor(urlEqualTo(HOCKEY_APP_UPLOAD_URL))
                 .withHeader("Content-Type", containing("multipart/form-data;"))
@@ -119,14 +124,11 @@ public class FreestyleTest extends ProjectTest {
     @Test
     public void should_CreateConfigurationAction_When_BuildEndsInSuccess() throws Exception {
         // Given
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -140,14 +142,11 @@ public class FreestyleTest extends ProjectTest {
     @Test
     public void should_CreateInstallationAction_When_BuildEndsInSuccess() throws Exception {
         // Given
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -162,14 +161,11 @@ public class FreestyleTest extends ProjectTest {
     public void should_Not_CreateInstallationAction_When_APIKeyHasNoPermissionToRelease() throws Exception {
         // Given
         apiKeyHasNoUploadPermission();
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setReleaseNotesMethod(new ManualReleaseNotes("releaseNotes", false))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -181,16 +177,13 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void should_UploadAVersionedApp_When_VersionCreationIsSelected_And_VersionIsNotSpecified() throws Exception {
+    public void should_SendUploadRequest_When_VersionCreationIsSelected_And_VersionIsNotSpecified() throws Exception {
         // Given
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setUploadMethod(new VersionCreation(APP_ID))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setUploadMethod(new VersionCreation(APP_ID))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -207,17 +200,14 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void should_UploadAVersionedApp_When_VersionCreationIsSelected_And_VersionIsSpecfied_1() throws Exception {
+    public void should_SendUploadRequest_When_VersionCreationIsSelected_And_VersionIsSpecified_1() throws Exception {
         // Given
         final String version = "1";
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setUploadMethod(new VersionCreation(APP_ID, version))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setUploadMethod(new VersionCreation(APP_ID, version))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -234,17 +224,14 @@ public class FreestyleTest extends ProjectTest {
     }
 
     @Test
-    public void should_UploadAVersionedApp_When_VersionCreationIsSelected_And_VersionIsSpecfied_2() throws Exception {
+    public void should_SendUploadRequst_When_VersionCreationIsSelected_And_VersionIsSpecified_2() throws Exception {
         // Given
         final String version = "2";
-        HockeyappRecorder hockeyappRecorder = new HockeyappRecorderBuilder()
-                .setLocalhostBaseUrl(mockHockeyAppServer.port())
-                .setApplications(Collections.singletonList(
-                        new HockeyappApplicationBuilder()
-                                .setUploadMethod(new VersionCreation(APP_ID, version))
-                                .create()))
+        final HockeyappApplication hockeyappApplication = new HockeyappApplicationBuilder()
+                .setUploadMethod(new VersionCreation(APP_ID, version))
                 .create();
-        project.getPublishersList().add(hockeyappRecorder);
+        final List<HockeyappApplication> applications = Collections.singletonList(hockeyappApplication);
+        addFreeStyleJob(applications);
 
         // When
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -258,5 +245,11 @@ public class FreestyleTest extends ProjectTest {
                 .withRequestBody(notifyFormData(0))
                 .withRequestBody(statusFormData(1)));
         failOnUnmatchedRequests();
+    }
+
+    private void addFreeStyleJob(List<HockeyappApplication> applications) {
+        final HockeyappRecorder hockeyappRecorder = new HockeyappRecorder(applications);
+        hockeyappRecorder.setBaseUrl("http://localhost:" + mockHockeyAppServer.port());
+        project.getPublishersList().add(hockeyappRecorder);
     }
 }
