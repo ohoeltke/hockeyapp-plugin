@@ -33,8 +33,8 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
     @Deprecated
     public long schemaVersion; // TODO: Fix Findbugs gracefully.
 
-    @Deprecated
-    public transient String apiToken;
+    public Secret apiToken;
+
     @SuppressFBWarnings(value = {"URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"}, justification = "Breaks binary compatibility if removed.")
     @Deprecated
     public String appId; // TODO: Fix Findbugs gracefully.
@@ -49,25 +49,16 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
     public OldVersionHolder oldVersionHolder;
     public RadioButtonSupport releaseNotesMethod;
     public RadioButtonSupport uploadMethod;
-    private Secret apiTokenSecret;
 
-    @Deprecated
+    @DataBoundConstructor
     public HockeyappApplication(String apiToken, String appId, boolean notifyTeam,
                                 String filePath, String dsymPath, String libsPath,
                                 String tags, String teams, boolean mandatory,
                                 boolean downloadAllowed, OldVersionHolder oldVersionHolder,
                                 RadioButtonSupport releaseNotesMethod, RadioButtonSupport uploadMethod) {
-        this(Secret.fromString(apiToken), notifyTeam, filePath, dsymPath, libsPath, tags, teams, mandatory,
-                downloadAllowed, oldVersionHolder, releaseNotesMethod, uploadMethod);
-    }
-
-    @DataBoundConstructor
-    public HockeyappApplication(Secret apiTokenSecret, boolean notifyTeam,
-                                String filePath, String dsymPath, String libsPath,
-                                String tags, String teams, boolean mandatory,
-                                boolean downloadAllowed, OldVersionHolder oldVersionHolder,
-                                RadioButtonSupport releaseNotesMethod, RadioButtonSupport uploadMethod) {
-        this.apiTokenSecret = apiTokenSecret;
+        this.schemaVersion = SCHEMA_VERSION_NUMBER;
+        this.apiToken = Secret.fromString(apiToken);
+        this.appId = Util.fixEmptyAndTrim(appId);
         this.notifyTeam = notifyTeam;
         this.filePath = Util.fixEmptyAndTrim(filePath);
         this.dsymPath = Util.fixEmptyAndTrim(dsymPath);
@@ -106,23 +97,6 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
     @Override
     public Descriptor<HockeyappApplication> getDescriptor() {
         return new DescriptorImpl();
-    }
-
-    protected Object readResolve() {
-        if (apiToken != null) {
-            final Secret secret = Secret.fromString(apiToken);
-            setApiTokenSecret(secret);
-        }
-
-        return this;
-    }
-
-    public Secret getApiTokenSecret() {
-        return apiTokenSecret;
-    }
-
-    public void setApiTokenSecret(Secret apiTokenSecret) {
-        this.apiTokenSecret = apiTokenSecret;
     }
 
     public static class OldVersionHolder {
@@ -192,7 +166,7 @@ public class HockeyappApplication implements Describable<HockeyappApplication> {
                         (HockeyappRecorder.DescriptorImpl) activeInstance.getDescriptorOrDie(HockeyappRecorder.class);
 
                 if (hockeyappRecorderDescriptor != null) {
-                    Secret defaultToken = hockeyappRecorderDescriptor.getDefaultTokenSecret();
+                    Secret defaultToken = hockeyappRecorderDescriptor.getDefaultToken();
 
                     if (defaultToken != null) {
                         return FormValidation.warning("Default API Token is used.");

@@ -2,7 +2,7 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
          xmlns:f="/lib/form">
 
-    <f:entry title="${%API Token}" field="apiTokenSecret">
+    <f:entry title="${%API Token}" field="apiToken">
         <f:password
                 checkUrl="'descriptorByName/hockeyapp.HockeyappApplication/checkApiToken?value='+escape(this.value)"/>
     </f:entry>
